@@ -505,18 +505,35 @@ class MessageRouter {
     }
 
     /**
+     * Keep typing indicator alive during long operations
+     */
+    startTypingIndicator(sendTyping) {
+        // Send initial typing indicator
+        sendTyping().catch(() => {}); // Ignore errors
+        
+        // Keep it alive by refreshing every 4 seconds (Telegram typing expires after ~5 seconds)
+        const interval = setInterval(() => {
+            sendTyping().catch(() => {}); // Ignore errors
+        }, 4000);
+        
+        return () => clearInterval(interval);
+    }
+
+    /**
      * Handle AI conversation with tool use
      */
     async handleAIConversation(ctx) {
         const { content, userId, platform, reply, sendTyping } = ctx.message;
         const requestId = ctx.requestId || 'unknown';
 
-        await sendTyping();
+        // Start typing indicator and keep it alive
+        const stopTyping = this.startTypingIndicator(sendTyping);
 
         // Block tool execution during startup grace period to prevent old tasks from running
         if (this.bot && this.bot.startupTime) {
             const timeSinceStartup = Date.now() - this.bot.startupTime;
             if (timeSinceStartup < this.bot.startupGracePeriod) {
+                stopTyping(); // Stop typing indicator
                 logger.warn(`⚠️ Blocked tool execution during startup grace period (${Math.round(timeSinceStartup)}ms since startup)`);
                 await reply('Bot is still initializing. Please wait a moment and try again.');
                 return;
@@ -525,6 +542,7 @@ class MessageRouter {
 
         // For casual greetings, respond without tools to prevent executing old tasks
         if (this.isCasualGreeting(content)) {
+            stopTyping(); // Stop typing indicator for quick responses
             const greetings = ['Hey!', 'Hi!', 'Hello!', 'Hey there!', 'Hi there!'];
             const response = greetings[Math.floor(Math.random() * greetings.length)];
             await reply(response);
@@ -578,6 +596,9 @@ class MessageRouter {
             // Clean up wrench retries for this request
             this.wrenchRetries.delete(requestId);
 
+            // Stop typing indicator
+            stopTyping();
+
             // Send response
             await reply(response);
         } catch (error) {
@@ -585,6 +606,9 @@ class MessageRouter {
             
             // Clean up wrench retries
             this.wrenchRetries.delete(requestId);
+            
+            // Stop typing indicator
+            stopTyping();
             
             await reply('❌ AI request failed. Please try again.');
         }
