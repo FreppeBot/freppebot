@@ -15,7 +15,7 @@
     "dev": "node --watch src/index.js",
     "test": "node --test",
     "docker:build": "docker build -t freppebot .",
-    "docker:run": "docker run -d --name freppebot -v ./config.json:/app/config.json freppebot",
+    "docker:run": "docker run -d --name freppebot -v ./config.json:/app/config.json freppebot"
   },
   "keywords": [
     "ai",
