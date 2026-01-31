@@ -4,6 +4,7 @@
  * ╚═══════════════════════════════════════════════════════════════╝
  */
 
+const cron = require('node-cron');
 const PluginLoader = require('../plugins/loader');
 const PluginRegistry = require('../plugins/registry');
 const AIManager = require('../ai/manager');
@@ -31,7 +32,10 @@ class FreppeBot {
         this.router = null;
         this.healthMonitor = null;
         this.backupManager = null;
+        this.reminderCronTask = null;
         this.backupInterval = null;
+        this.startupTime = null;
+        this.startupGracePeriod = 5000; // 5 seconds
     }
 
     /**
@@ -146,6 +150,15 @@ class FreppeBot {
     }
 
     async start() {
+        // Clear conversation history FIRST, before starting anything
+        // This ensures each bot restart starts with a clean slate and prevents old tasks from executing
+        this.database.clearAllConversations();
+        logger.info('✓ Cleared conversation history (fresh start)');
+
+        // Set startup time to prevent tool execution during initial period
+        this.startupTime = Date.now();
+        this.startupGracePeriod = 5000; // 5 seconds grace period after startup
+
         logger.info('Starting adapters...');
 
         for (const adapter of this.adapters) {
@@ -167,46 +180,109 @@ class FreppeBot {
     }
 
     /**
-     * Check for due reminders every 2 seconds for better responsiveness
+     * Clean up old reminders that are past their due date (older than 1 hour)
+     * This prevents processing stale reminders on startup
+     */
+    async cleanupOldReminders() {
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        
+        const stmt = this.database.db.prepare(`
+            SELECT COUNT(*) as count FROM reminders 
+            WHERE datetime(remind_at) < datetime(?) AND completed = 0
+        `);
+        stmt.bind([oneHourAgo]);
+        
+        let oldCount = 0;
+        if (stmt.step()) {
+            oldCount = stmt.getAsObject().count;
+        }
+        stmt.free();
+        
+        if (oldCount > 0) {
+            logger.info(`🧹 Cleaning up ${oldCount} old reminder(s) that are more than 1 hour past due`);
+            
+            const updateStmt = this.database.db.prepare(`
+                UPDATE reminders SET completed = 1 
+                WHERE datetime(remind_at) < datetime(?) AND completed = 0
+            `);
+            updateStmt.run([oneHourAgo]);
+            updateStmt.free();
+            
+            logger.info(`✅ Marked ${oldCount} old reminder(s) as completed`);
+        }
+    }
+
+    /**
+     * Check for due reminders using cron (every 5 seconds)
      */
     startReminderChecker() {
-        logger.info('⏰ Starting reminder checker (checking every 2 seconds)');
+        logger.info('⏰ Starting reminder checker with cron (checking every 5 seconds)');
+        logger.info('⏰ Reminder checker function called - initializing...');
         
-        // Check immediately on start
-        this.checkDueReminders().catch(err => {
-            logger.error('❌ Initial reminder check error:', err);
+        // Clean up old reminders first
+        this.cleanupOldReminders().catch(err => {
+            logger.error('❌ Old reminder cleanup error:', err);
         });
         
-        // Then check every 2 seconds
-        this.reminderInterval = setInterval(async () => {
+        // Check immediately on start (after cleanup)
+        setTimeout(() => {
+            this.checkDueReminders().catch(err => {
+                logger.error('❌ Initial reminder check error:', err);
+            });
+        }, 1000); // Wait 1 second after cleanup
+        
+        // Schedule cron job to run every 5 seconds
+        // Cron format: second minute hour day month weekday
+        // '*/5 * * * * *' means every 5 seconds
+        this.reminderCronTask = cron.schedule('*/5 * * * * *', async () => {
             try {
+                // Log every cron trigger for debugging (can reduce frequency later)
+                if (Math.random() < 0.2) { // 20% chance to log
+                    logger.info('⏰ Cron job triggered - checking reminders');
+                }
                 await this.checkDueReminders();
             } catch (err) {
                 logger.error('❌ Reminder checker error:', err);
                 logger.error(err.stack);
             }
-        }, 2000); // Check every 2 seconds for better accuracy
+        }, {
+            scheduled: true,
+            timezone: 'UTC'
+        });
         
-        logger.info('✅ Reminder checker interval started');
+        logger.info('✅ Reminder checker cron job started');
     }
 
     async checkDueReminders() {
         const now = new Date().toISOString();
         const nowDate = new Date();
 
-        // Get due reminders using sql.js API
-        // Use datetime comparison for better accuracy
+        // Log every check for debugging (can be reduced later)
+        // Using info level so we can see if the checker is running
+        if (Math.random() < 0.2) { // 20% chance to log each check
+            logger.info(`⏰ Checking for due reminders. Now: ${now}`);
+        }
+
+        // Get all due reminders (remind_at <= now) that haven't been completed
+        // The cleanup function handles very old reminders, so we can process all due ones
+        logger.info(`🔍 Querying for due reminders: remind_at <= ${now}`);
         const stmt = this.database.db.prepare(`
             SELECT * FROM reminders 
-            WHERE datetime(remind_at) <= datetime(?) AND completed = 0
+            WHERE datetime(remind_at) <= datetime(?)
+            AND completed = 0
+            ORDER BY remind_at ASC
         `);
         stmt.bind([now]);
 
         const reminders = [];
         while (stmt.step()) {
-            reminders.push(stmt.getAsObject());
+            const reminder = stmt.getAsObject();
+            reminders.push(reminder);
+            logger.info(`✅ Found due reminder: ID=${reminder.id}, message="${reminder.message}", remind_at=${reminder.remind_at}`);
         }
         stmt.free();
+        
+        logger.info(`📊 SQL query returned ${reminders.length} due reminder(s) out of ${allPending.length} pending`);
 
         // Also check all pending reminders for debugging
         const allPendingStmt = this.database.db.prepare(`
@@ -218,26 +294,31 @@ class FreppeBot {
         }
         allPendingStmt.free();
 
-        // Log pending reminders for debugging (only if there are any)
+        // Log pending reminders for debugging (always log if there are any)
         if (allPending.length > 0) {
-            logger.debug(`📋 Pending reminders (${allPending.length}):`);
+            logger.info(`📋 Pending reminders (${allPending.length}):`);
             for (const r of allPending) {
                 const remindDate = new Date(r.remind_at);
                 const diffMs = remindDate - nowDate;
                 const diffSec = Math.floor(diffMs / 1000);
                 const status = diffSec <= 0 ? 'DUE NOW' : `in ${diffSec}s`;
-                logger.debug(`  - Reminder ${r.id}: "${r.message}" (Due: ${r.remind_at}, ${status})`);
+                logger.info(`  - Reminder ${r.id}: "${r.message}" (Due: ${r.remind_at}, ${status})`);
             }
+        } else {
+            logger.debug(`📋 No pending reminders found`);
         }
 
         if (reminders.length > 0) {
             logger.info(`🔔 Found ${reminders.length} due reminder(s). Now: ${now}`);
             for (const r of reminders) {
-                logger.info(`  - Reminder ${r.id}: "${r.message}" (Due: ${r.remind_at})`);
+                const remindDate = new Date(r.remind_at);
+                const diffMs = nowDate - remindDate;
+                const diffSec = Math.floor(diffMs / 1000);
+                logger.info(`  - Reminder ${r.id}: "${r.message}" (Due: ${r.remind_at}, ${diffSec}s ago)`);
             }
         } else {
-            // Log that checker is running (only occasionally to avoid spam)
-            if (Math.random() < 0.01) { // 1% chance to log
+            // Log that checker is running (more frequently for debugging)
+            if (Math.random() < 0.1) { // 10% chance to log (increased for debugging)
                 logger.debug(`⏰ Reminder checker running (no due reminders at ${now})`);
             }
         }
@@ -374,8 +455,9 @@ class FreppeBot {
         logger.info('Stopping FreppeBot...');
 
         // Stop reminder checker
-        if (this.reminderInterval) {
-            clearInterval(this.reminderInterval);
+        if (this.reminderCronTask) {
+            this.reminderCronTask.stop();
+            this.reminderCronTask = null;
         }
 
         // Stop automatic backups

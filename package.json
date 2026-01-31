@@ -9,12 +9,13 @@
   "scripts": {
     "start": "node src/index.js",
     "setup": "node src/cli/setup.js",
+    "setup:plugins": "node src/cli/setup.js --plugins",
     "plugin": "node src/cli/plugin-manager.js",
     "monitor": "node src/cli/monitor.js",
     "dev": "node --watch src/index.js",
     "test": "node --test",
     "docker:build": "docker build -t freppebot .",
-    "docker:run": "docker run -d --name freppebot -v ./config.json:/app/config.json freppebot"
+    "docker:run": "docker run -d --name freppebot -v ./config.json:/app/config.json freppebot",
   },
   "keywords": [
     "ai",
@@ -34,6 +35,7 @@
     "chokidar": "^3.6.0",
     "discord.js": "^14.16.0",
     "inquirer": "^8.2.6",
+    "node-cron": "^4.2.1",
     "node-fetch": "^2.7.0",
     "nodemailer": "^6.10.1",
     "openai": "^4.70.0",

@@ -101,29 +101,44 @@ module.exports = new Plugin({
                 },
             },
             execute: async (params, ctx) => {
+                const logger = require('../../src/utils/logger');
+                logger.info(`[setReminder] Tool called with params:`, JSON.stringify(params));
+                
                 const ms = parseTimeString(params.delay);
                 if (!ms) {
+                    logger.warn(`[setReminder] Invalid time format: ${params.delay}`);
                     return { success: false, error: 'Invalid time format. Use 10s, 5m, 2h' };
                 }
 
                 const remindAt = new Date(Date.now() + ms);
+                logger.info(`[setReminder] Parsed delay: ${ms}ms, remindAt: ${remindAt.toISOString()}`);
 
                 const db = ctx.getDatabase();
                 const channelId = ctx.message.channelId || null;
-                db.addReminder(
-                    ctx.getUserId(),
-                    ctx.getPlatform(),
-                    params.message,
-                    remindAt.toISOString(),
-                    channelId
-                );
+                logger.info(`[setReminder] Adding reminder to database: userId=${ctx.getUserId()}, platform=${ctx.getPlatform()}, message="${params.message}"`);
+                
+                try {
+                    db.addReminder(
+                        ctx.getUserId(),
+                        ctx.getPlatform(),
+                        params.message,
+                        remindAt.toISOString(),
+                        channelId
+                    );
+                    logger.info(`[setReminder] Reminder added successfully to database`);
+                } catch (error) {
+                    logger.error(`[setReminder] Failed to add reminder to database:`, error);
+                    return { success: false, error: `Database error: ${error.message}` };
+                }
 
-                return {
+                const result = {
                     success: true,
                     message: params.message,
                     remindAt: remindAt.toISOString(),
                     formattedTime: formatDuration(ms)
                 };
+                logger.info(`[setReminder] Returning result:`, JSON.stringify(result));
+                return result;
             },
         },
 

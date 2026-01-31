@@ -200,6 +200,26 @@ class DatabaseManager {
   }
 
   /**
+   * Clear all conversation history (for all users)
+   */
+  clearAllConversations() {
+    const stmt = this.db.prepare(`DELETE FROM conversations`);
+    stmt.run();
+    stmt.free();
+    logger.info('Cleared all conversation history');
+  }
+
+  /**
+   * Clear conversation history for a specific user
+   */
+  clearUserConversations(userId, platform) {
+    const stmt = this.db.prepare(`DELETE FROM conversations WHERE user_id = ? AND platform = ?`);
+    stmt.run([userId, platform]);
+    stmt.free();
+    logger.info(`Cleared conversation history for ${userId} on ${platform}`);
+  }
+
+  /**
    * Get total message count for a user
    */
   getMessageCount(userId, platform) {

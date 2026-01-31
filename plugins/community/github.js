@@ -592,6 +592,300 @@ module.exports = new Plugin({
                 }
             },
         },
+
+        editGitHubFile: {
+            description: 'Edit or create a file in a remote GitHub repository',
+            parameters: {
+                repository: {
+                    type: 'string',
+                    description: 'Repository name (e.g., "username/repo") or full GitHub URL',
+                },
+                filePath: {
+                    type: 'string',
+                    description: 'Path to the file in the repository (e.g., "src/index.js")',
+                },
+                content: {
+                    type: 'string',
+                    description: 'New content for the file',
+                },
+                message: {
+                    type: 'string',
+                    description: 'Commit message',
+                    required: false,
+                },
+                branch: {
+                    type: 'string',
+                    description: 'Branch name (default: main)',
+                    required: false,
+                },
+            },
+            execute: async (params, ctx) => {
+                if (!ctx.isAdmin) {
+                    return { success: false, error: 'Admin privileges required' };
+                }
+
+                const token = getGitHubToken(ctx);
+                if (!token) {
+                    return { success: false, error: 'GitHub token not configured. Add to config.json under plugins.github.token' };
+                }
+
+                try {
+                    // Parse repository name from URL or use as-is
+                    let repoName = params.repository;
+                    if (repoName.includes('github.com/')) {
+                        // Extract repo name from URL
+                        const match = repoName.match(/github\.com\/([^\/]+\/[^\/]+)/);
+                        if (match) {
+                            repoName = match[1].replace(/\.git$/, '');
+                        }
+                    }
+
+                    const branch = params.branch || 'main';
+                    const filePath = params.filePath;
+                    const content = params.content;
+                    const commitMessage = params.message || `Update ${filePath}`;
+
+                    // Support both old token format and new Bearer format
+                    const authHeader = token.startsWith('ghp_') || token.startsWith('github_pat_')
+                        ? `Bearer ${token}`
+                        : `token ${token}`;
+
+                    // First, get the current file to get its SHA (if it exists)
+                    let sha = null;
+                    try {
+                        const getResponse = await fetch(
+                            `https://api.github.com/repos/${repoName}/contents/${encodeURIComponent(filePath)}?ref=${branch}`,
+                            {
+                                headers: {
+                                    'Authorization': authHeader,
+                                    'Accept': 'application/vnd.github.v3+json',
+                                },
+                            }
+                        );
+
+                        if (getResponse.ok) {
+                            const fileData = await getResponse.json();
+                            sha = fileData.sha;
+                        }
+                    } catch (err) {
+                        // File doesn't exist, that's okay - we'll create it
+                    }
+
+                    // Encode content to base64
+                    const contentBase64 = Buffer.from(content, 'utf-8').toString('base64');
+
+                    // Create or update the file
+                    const response = await fetch(
+                        `https://api.github.com/repos/${repoName}/contents/${encodeURIComponent(filePath)}`,
+                        {
+                            method: 'PUT',
+                            headers: {
+                                'Authorization': authHeader,
+                                'Accept': 'application/vnd.github.v3+json',
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                message: commitMessage,
+                                content: contentBase64,
+                                branch: branch,
+                                ...(sha ? { sha } : {}), // Include SHA if updating existing file
+                            }),
+                        }
+                    );
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        return { success: false, error: data.message || 'Failed to update file' };
+                    }
+
+                    return {
+                        success: true,
+                        message: sha ? 'File updated' : 'File created',
+                        url: data.content.html_url,
+                        commit: data.commit.html_url,
+                    };
+                } catch (error) {
+                    return { success: false, error: error.message };
+                }
+            },
+        },
+
+        getGitHubFile: {
+            description: 'Get file contents from a remote GitHub repository',
+            parameters: {
+                repository: {
+                    type: 'string',
+                    description: 'Repository name (e.g., "username/repo") or full GitHub URL',
+                },
+                filePath: {
+                    type: 'string',
+                    description: 'Path to the file in the repository (e.g., "src/index.js")',
+                },
+                branch: {
+                    type: 'string',
+                    description: 'Branch name (default: main)',
+                    required: false,
+                },
+            },
+            execute: async (params, ctx) => {
+                const token = getGitHubToken(ctx);
+                if (!token) {
+                    return { success: false, error: 'GitHub token not configured' };
+                }
+
+                try {
+                    // Parse repository name from URL or use as-is
+                    let repoName = params.repository;
+                    if (repoName.includes('github.com/')) {
+                        const match = repoName.match(/github\.com\/([^\/]+\/[^\/]+)/);
+                        if (match) {
+                            repoName = match[1].replace(/\.git$/, '');
+                        }
+                    }
+
+                    const branch = params.branch || 'main';
+                    const filePath = params.filePath;
+
+                    // Support both old token format and new Bearer format
+                    const authHeader = token.startsWith('ghp_') || token.startsWith('github_pat_')
+                        ? `Bearer ${token}`
+                        : `token ${token}`;
+
+                    const response = await fetch(
+                        `https://api.github.com/repos/${repoName}/contents/${encodeURIComponent(filePath)}?ref=${branch}`,
+                        {
+                            headers: {
+                                'Authorization': authHeader,
+                                'Accept': 'application/vnd.github.v3+json',
+                            },
+                        }
+                    );
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        return { success: false, error: error.message || 'Failed to get file' };
+                    }
+
+                    const data = await response.json();
+
+                    // Decode base64 content
+                    const content = Buffer.from(data.content, 'base64').toString('utf-8');
+
+                    return {
+                        success: true,
+                        content: content,
+                        size: data.size,
+                        url: data.html_url,
+                        sha: data.sha,
+                    };
+                } catch (error) {
+                    return { success: false, error: error.message };
+                }
+            },
+        },
+
+        deleteGitHubFile: {
+            description: 'Delete a file from a remote GitHub repository',
+            parameters: {
+                repository: {
+                    type: 'string',
+                    description: 'Repository name (e.g., "username/repo") or full GitHub URL',
+                },
+                filePath: {
+                    type: 'string',
+                    description: 'Path to the file in the repository',
+                },
+                message: {
+                    type: 'string',
+                    description: 'Commit message',
+                    required: false,
+                },
+                branch: {
+                    type: 'string',
+                    description: 'Branch name (default: main)',
+                    required: false,
+                },
+            },
+            execute: async (params, ctx) => {
+                if (!ctx.isAdmin) {
+                    return { success: false, error: 'Admin privileges required' };
+                }
+
+                const token = getGitHubToken(ctx);
+                if (!token) {
+                    return { success: false, error: 'GitHub token not configured' };
+                }
+
+                try {
+                    // Parse repository name from URL or use as-is
+                    let repoName = params.repository;
+                    if (repoName.includes('github.com/')) {
+                        const match = repoName.match(/github\.com\/([^\/]+\/[^\/]+)/);
+                        if (match) {
+                            repoName = match[1].replace(/\.git$/, '');
+                        }
+                    }
+
+                    const branch = params.branch || 'main';
+                    const filePath = params.filePath;
+                    const commitMessage = params.message || `Delete ${filePath}`;
+
+                    // Support both old token format and new Bearer format
+                    const authHeader = token.startsWith('ghp_') || token.startsWith('github_pat_')
+                        ? `Bearer ${token}`
+                        : `token ${token}`;
+
+                    // First, get the file to get its SHA
+                    const getResponse = await fetch(
+                        `https://api.github.com/repos/${repoName}/contents/${encodeURIComponent(filePath)}?ref=${branch}`,
+                        {
+                            headers: {
+                                'Authorization': authHeader,
+                                'Accept': 'application/vnd.github.v3+json',
+                            },
+                        }
+                    );
+
+                    if (!getResponse.ok) {
+                        return { success: false, error: 'File not found' };
+                    }
+
+                    const fileData = await getResponse.json();
+
+                    // Delete the file
+                    const response = await fetch(
+                        `https://api.github.com/repos/${repoName}/contents/${encodeURIComponent(filePath)}`,
+                        {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': authHeader,
+                                'Accept': 'application/vnd.github.v3+json',
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                message: commitMessage,
+                                sha: fileData.sha,
+                                branch: branch,
+                            }),
+                        }
+                    );
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        return { success: false, error: error.message || 'Failed to delete file' };
+                    }
+
+                    return {
+                        success: true,
+                        message: 'File deleted',
+                        commit: (await response.json()).commit.html_url,
+                    };
+                } catch (error) {
+                    return { success: false, error: error.message };
+                }
+            },
+        },
     },
 });
 

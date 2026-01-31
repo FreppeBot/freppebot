@@ -15,6 +15,179 @@ const chalk = require('chalk');
 const CONFIG_PATH = path.join(process.cwd(), 'config.json');
 
 /**
+ * Scan plugins and extract API key requirements
+ */
+function scanPluginRequirements() {
+    const requirements = new Map(); // pluginName -> Set of config paths
+    
+    const pluginDirs = [
+        path.join(process.cwd(), 'plugins', 'community'),
+        path.join(process.cwd(), 'plugins', 'core'),
+    ];
+
+    for (const pluginDir of pluginDirs) {
+        if (!fs.existsSync(pluginDir)) continue;
+
+        const files = fs.readdirSync(pluginDir).filter(f => f.endsWith('.js'));
+        
+        for (const file of files) {
+            const filePath = path.join(pluginDir, file);
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const pluginName = path.basename(file, '.js');
+            
+            // Skip example plugin
+            if (pluginName === 'example') continue;
+            
+            const pluginReqs = new Set();
+            
+            // Pattern 1: config?.plugins?.{plugin}?.{key}
+            const configPattern = /config\?\.plugins\?\.(\w+)\?\.(\w+)/g;
+            let match;
+            while ((match = configPattern.exec(content)) !== null) {
+                const [, plugin, key] = match;
+                if (plugin === pluginName) {
+                    pluginReqs.add(`plugins.${plugin}.${key}`);
+                }
+            }
+            
+            // Pattern 2: config?.plugins?.{plugin}?.{nested}?.{key}
+            const nestedPattern = /config\?\.plugins\?\.(\w+)\?\.(\w+)\?\.(\w+)/g;
+            while ((match = nestedPattern.exec(content)) !== null) {
+                const [, plugin, nested, key] = match;
+                if (plugin === pluginName) {
+                    pluginReqs.add(`plugins.${plugin}.${nested}.${key}`);
+                }
+            }
+            
+            // Pattern 3: ctx.getConfig().plugins?.{plugin}?.{key}
+            const ctxPattern = /getConfig\(\)\.plugins\?\.(\w+)\?\.(\w+)/g;
+            while ((match = ctxPattern.exec(content)) !== null) {
+                const [, plugin, key] = match;
+                if (plugin === pluginName) {
+                    pluginReqs.add(`plugins.${plugin}.${key}`);
+                }
+            }
+            
+            // Pattern 4: ctx.bot.getConfig().plugins?.{plugin}?.{key}
+            const botPattern = /getConfig\(\)\.plugins\?\.(\w+)\?\.(\w+)/g;
+            while ((match = botPattern.exec(content)) !== null) {
+                const [, plugin, key] = match;
+                if (plugin === pluginName) {
+                    pluginReqs.add(`plugins.${plugin}.${key}`);
+                }
+            }
+            
+            // Pattern 5: Specific known patterns for each plugin
+            if (pluginName === 'github' && (content.includes('plugins?.github?.token') || content.includes('GITHUB_TOKEN'))) {
+                pluginReqs.add('plugins.github.token');
+            }
+            
+            if (pluginName === 'news' && content.includes('plugins?.news?.apiKey')) {
+                pluginReqs.add('plugins.news.apiKey');
+            }
+            
+            if (pluginName === 'brave' && (content.includes('plugins?.brave?.apiKey') || content.includes('BRAVE_API_KEY') || content.includes('config?.apiKey'))) {
+                pluginReqs.add('plugins.brave.apiKey');
+            }
+            
+            if (pluginName === 'spotify' && (content.includes('plugins?.spotify') || content.includes('SPOTIFY_CLIENT_ID'))) {
+                pluginReqs.add('plugins.spotify.clientId');
+                pluginReqs.add('plugins.spotify.clientSecret');
+            }
+            
+            if (pluginName === 'email' && (content.includes('plugins?.email?.smtp') || content.includes('smtp?.host'))) {
+                pluginReqs.add('plugins.email.smtp.host');
+                pluginReqs.add('plugins.email.smtp.user');
+                pluginReqs.add('plugins.email.smtp.password');
+                pluginReqs.add('plugins.email.smtp.port');
+            }
+            
+            if (pluginName === 'twitter' && (content.includes('TWITTER_API_KEY') || content.includes('TWITTER_API_SECRET'))) {
+                pluginReqs.add('plugins.twitter.apiKey');
+                pluginReqs.add('plugins.twitter.apiSecret');
+                pluginReqs.add('plugins.twitter.accessToken');
+                pluginReqs.add('plugins.twitter.accessSecret');
+            }
+            
+            // Pattern 6: config?.{key} in plugin context (for plugins that pass config directly)
+            if (content.includes('config?.apiKey') && !content.includes('plugins.')) {
+                // Check if it's used in a plugin context
+                const hasPluginContext = content.includes(`plugins/${pluginName}`) || 
+                                       content.includes(`'${pluginName}'`) || 
+                                       content.includes(`"${pluginName}"`);
+                if (hasPluginContext) {
+                    pluginReqs.add(`plugins.${pluginName}.apiKey`);
+                }
+            }
+            
+            if (pluginReqs.size > 0) {
+                requirements.set(pluginName, pluginReqs);
+            }
+        }
+    }
+    
+    return requirements;
+}
+
+/**
+ * Get human-readable name for a config path
+ */
+function getConfigKeyName(configPath) {
+    const parts = configPath.split('.');
+    const key = parts[parts.length - 1];
+    
+    const keyNames = {
+        'token': 'API Token',
+        'apiKey': 'API Key',
+        'apiSecret': 'API Secret',
+        'accessToken': 'Access Token',
+        'accessSecret': 'Access Secret',
+        'clientId': 'Client ID',
+        'clientSecret': 'Client Secret',
+        'host': 'SMTP Host',
+        'user': 'SMTP Username',
+        'password': 'SMTP Password',
+        'port': 'SMTP Port',
+    };
+    
+    return keyNames[key] || key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+/**
+ * Get existing value from config for a nested path
+ */
+function getExistingValue(config, path) {
+    const parts = path.split('.');
+    let current = config;
+    for (const part of parts) {
+        if (current && typeof current === 'object' && part in current) {
+            current = current[part];
+        } else {
+            return undefined;
+        }
+    }
+    return current;
+}
+
+/**
+ * Set value in config for a nested path
+ */
+function setConfigValue(config, path, value) {
+    const parts = path.split('.');
+    let current = config;
+    
+    for (let i = 0; i < parts.length - 1; i++) {
+        const part = parts[i];
+        if (!current[part] || typeof current[part] !== 'object') {
+            current[part] = {};
+        }
+        current = current[part];
+    }
+    
+    current[parts[parts.length - 1]] = value;
+}
+
+/**
  * Fetch available models from OpenRouter
  */
 async function fetchOpenRouterModels() {
@@ -53,7 +226,107 @@ async function fetchOpenRouterModels() {
 }
 
 
+/**
+ * Configure plugin API keys only
+ */
+async function configurePluginsOnly() {
+    printBanner();
+    
+    console.log(chalk.cyan('🔌 Plugin API Key Configuration\n'));
+    console.log(chalk.gray('Scanning installed plugins for API key requirements...\n'));
+    
+    // Load existing config
+    let config = {};
+    if (fs.existsSync(CONFIG_PATH)) {
+        try {
+            config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+        } catch (error) {
+            console.log(chalk.yellow('⚠ Could not read existing config.json, starting fresh\n'));
+        }
+    }
+    
+    // Ensure plugins object exists
+    if (!config.plugins) {
+        config.plugins = {};
+    }
+    
+    // Scan plugins
+    const requirements = scanPluginRequirements();
+    
+    if (requirements.size === 0) {
+        console.log(chalk.yellow('⚠ No plugins with API key requirements found.\n'));
+        console.log(chalk.gray('Make sure you have plugins in plugins/community/ or plugins/core/\n'));
+        return;
+    }
+    
+    console.log(chalk.green(`✓ Found ${requirements.size} plugin(s) with API key requirements:\n`));
+    
+    // Group by plugin for better UX
+    const questions = [];
+    const pluginNames = Array.from(requirements.keys()).sort();
+    
+    for (const pluginName of pluginNames) {
+        const pluginReqs = Array.from(requirements.get(pluginName));
+        
+        console.log(chalk.cyan(`\n📦 ${pluginName.charAt(0).toUpperCase() + pluginName.slice(1)} Plugin`));
+        console.log(chalk.gray(`   Requires: ${pluginReqs.map(p => p.split('.').slice(2).join('.')).join(', ')}`));
+        
+        for (const configPath of pluginReqs) {
+            const existing = getExistingValue(config, configPath);
+            const keyName = getConfigKeyName(configPath);
+            const parts = configPath.split('.');
+            const plugin = parts[1];
+            const key = parts.slice(2).join('.');
+            
+            questions.push({
+                type: 'input',
+                name: configPath,
+                message: `${keyName} (${plugin})${key !== keyName ? ` - ${key}` : ''}`,
+                default: existing || '',
+                filter: (input) => {
+                    const trimmed = input.trim();
+                    return trimmed.length > 0 ? trimmed : undefined;
+                },
+            });
+        }
+    }
+    
+    console.log(chalk.gray('\n─────────────────────────────────────────\n'));
+    
+    // Prompt for all keys
+    const answers = await inquirer.prompt(questions);
+    
+    // Update config with answers
+    let configuredCount = 0;
+    for (const [configPath, value] of Object.entries(answers)) {
+        if (value && value.trim().length > 0) {
+            setConfigValue(config, configPath, value.trim());
+            configuredCount++;
+        }
+    }
+    
+    // Save config
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+    
+    console.log(chalk.green('\n✅ Plugin API keys saved to config.json!\n'));
+    
+    // Show summary
+    const total = questions.length;
+    console.log(chalk.cyan(`Configured ${configuredCount}/${total} API keys\n`));
+    
+    if (configuredCount < total) {
+        console.log(chalk.yellow(`⚠ ${total - configuredCount} key(s) were skipped. You can run 'npm run setup --plugins' again to configure them later.\n`));
+    }
+}
+
 async function main() {
+    // Check for --plugins flag
+    const args = process.argv.slice(2);
+    if (args.includes('--plugins')) {
+        await configurePluginsOnly();
+        return;
+    }
+    
     printBanner();
 
     console.log(chalk.cyan('Welcome to FreppeBot Setup! 🤖\n'));

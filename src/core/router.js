@@ -12,6 +12,19 @@ const CooldownManager = require('../utils/cooldown');
 const { generateRequestId } = require('../utils/request-id');
 const { withTimeout } = require('../utils/timeout');
 
+// Wrench error handler (lazy loaded to avoid circular dependencies)
+let wrenchModule = null;
+const getWrenchHandler = () => {
+    if (!wrenchModule) {
+        try {
+            wrenchModule = require('../../plugins/core/wrench');
+        } catch (e) {
+            logger.debug('Wrench module not loaded yet');
+        }
+    }
+    return wrenchModule?.getWrenchHandler?.() || null;
+};
+
 class MessageRouter {
     constructor({ bot, pluginRegistry, aiManager, memory, config, healthMonitor }) {
         this.bot = bot;
@@ -20,6 +33,9 @@ class MessageRouter {
         this.memory = memory;
         this.config = config;
         this.healthMonitor = healthMonitor;
+        
+        // Track wrench retry attempts per request (max 3)
+        this.wrenchRetries = new Map(); // requestId -> count
 
         // Initialize rate limiter (10 requests per minute per user)
         this.rateLimiter = new RateLimiter({
@@ -57,6 +73,73 @@ class MessageRouter {
         }
 
         return { valid: true, content: sanitized };
+    }
+
+    /**
+     * Check if a message might be an API key response
+     */
+    isLikelyAPIKey(content) {
+        // API keys are typically long alphanumeric strings
+        const trimmed = content.trim();
+        // Check for common API key patterns
+        const apiKeyPatterns = [
+            /^sk-[a-zA-Z0-9]{32,}$/, // OpenAI style
+            /^[a-zA-Z0-9]{32,}$/, // Generic long alphanumeric
+            /^[a-zA-Z0-9_-]{20,}$/, // Generic with underscores/dashes
+        ];
+        return apiKeyPatterns.some(p => p.test(trimmed));
+    }
+
+    /**
+     * Handle potential API key response from user
+     */
+    async handleAPIKeyResponse(ctx) {
+        const wrenchHandler = getWrenchHandler();
+        if (!wrenchHandler) return false;
+
+        const userId = ctx.message.userId;
+        
+        // Check if user has a pending API key request
+        if (!wrenchHandler.hasPendingKeyRequest(userId)) {
+            return false;
+        }
+
+        const content = ctx.message.content.trim();
+        
+        // Validate it looks like an API key
+        if (!this.isLikelyAPIKey(content)) {
+            await ctx.message.reply('❌ That doesn\'t look like a valid API key. Please send just the API key.');
+            return true; // Handled, but invalid
+        }
+
+        // Process the API key
+        const result = wrenchHandler.handleReceivedAPIKey(userId, content);
+        
+        if (result.success) {
+            // Store the API key securely (in memory for this session)
+            // In a production system, you'd want to encrypt and store this properly
+            logger.info(`Received API key for ${result.service} from user ${userId}`);
+            
+            // Notify the user
+            await ctx.message.reply(
+                `✅ API key for **${result.service}** received!\n\n` +
+                `The key has been stored for this session. ` +
+                `To make it permanent, add it to your config.json or environment variables:\n` +
+                `\`${result.envVars[0]}=your_key_here\``
+            );
+            
+            // Store in bot config temporarily
+            if (this.bot && this.bot.config) {
+                const keyName = `${result.service.toLowerCase()}Key`;
+                this.bot.config[keyName] = result.apiKey;
+                logger.info(`Stored ${result.service} API key in runtime config`);
+            }
+            
+            return true;
+        } else {
+            await ctx.message.reply(`❌ ${result.error}`);
+            return true;
+        }
     }
 
     /**
@@ -101,6 +184,12 @@ class MessageRouter {
         });
 
         try {
+            // Check if this is an API key response (for wrench)
+            if (this.isLikelyAPIKey(content)) {
+                const handled = await this.handleAPIKeyResponse(ctx);
+                if (handled) return;
+            }
+
             // Check if it's a direct command (starts with prefix)
             if (content.startsWith(this.config.commandPrefix)) {
                 const handled = await this.handleCommand(ctx);
@@ -123,12 +212,57 @@ class MessageRouter {
                 this.healthMonitor.recordError(error);
             }
             
+            // Try to use wrench to diagnose and suggest fixes (max 3 attempts)
+            const wrenchHandler = getWrenchHandler();
+            let wrenchMessage = '';
+            
+            if (wrenchHandler) {
+                const retryCount = this.wrenchRetries.get(requestId) || 0;
+                
+                if (retryCount < 3) {
+                    try {
+                        logger.info(`[${requestId}] Wrench analyzing error... (attempt ${retryCount + 1}/3)`);
+                        this.wrenchRetries.set(requestId, retryCount + 1);
+                        
+                        const resolution = await wrenchHandler.resolveError(error.message || error, ctx, {
+                            autoFix: false,
+                            autoExecute: false,
+                        });
+                        
+                        // Only add to message if this is the final attempt
+                        if (retryCount === 2) {
+                            if (resolution.message) {
+                                wrenchMessage = `\n\n🔧 **Diagnosis:**\n${resolution.message}`;
+                            }
+                            
+                            if (resolution.suggestedCommand || resolution.installCommand) {
+                                wrenchMessage += `\n\n**Suggested Fix:**\n\`\`\`bash\n${resolution.suggestedCommand || resolution.installCommand}\n\`\`\``;
+                            }
+                        } else {
+                            // Log silently for first 2 attempts
+                            logger.debug(`[${requestId}] Wrench attempt ${retryCount + 1}: ${resolution.message || 'No resolution'}`);
+                        }
+                    } catch (wrenchError) {
+                        logger.warn(`[${requestId}] Wrench failed: ${wrenchError.message}`);
+                        if (retryCount === 2) {
+                            wrenchMessage = `\n\n❌ Unable to diagnose error after 3 attempts.`;
+                        }
+                    }
+                } else {
+                    // Max retries reached - send final error
+                    wrenchMessage = `\n\n❌ Error resolution failed after 3 attempts.`;
+                    this.wrenchRetries.delete(requestId);
+                }
+            }
+            
             // Provide more helpful error messages
             let errorMessage = '❌ Sorry, something went wrong.';
             if (error.message && !error.message.includes('timed out')) {
                 // Don't expose timeout details to users
                 errorMessage += ` ${error.message}`;
             }
+            
+            errorMessage += wrenchMessage;
             
             // Don't expose internal errors to users, but log them
             if (error.stack) {
@@ -358,6 +492,19 @@ class MessageRouter {
     }
 
     /**
+     * Check if message is a casual greeting that shouldn't trigger tools
+     */
+    isCasualGreeting(content) {
+        const normalized = content.trim().toLowerCase();
+        const casualGreetings = [
+            'hey', 'hi', 'hello', 'hiya', 'hey there', 'hey!', 'hi!', 'hello!',
+            'what\'s up', 'whats up', 'sup', 'yo', 'howdy', 'greetings',
+            'morning', 'afternoon', 'evening', 'good morning', 'good afternoon', 'good evening'
+        ];
+        return casualGreetings.includes(normalized) || casualGreetings.some(g => normalized.startsWith(g + ' ') || normalized === g);
+    }
+
+    /**
      * Handle AI conversation with tool use
      */
     async handleAIConversation(ctx) {
@@ -366,9 +513,24 @@ class MessageRouter {
 
         await sendTyping();
 
-        // Get minimal conversation history (only last message for very limited context)
-        // This prevents the AI from referencing old conversations
-        const history = await this.memory.getConversationHistory(userId, platform, 1);
+        // Block tool execution during startup grace period to prevent old tasks from running
+        if (this.bot && this.bot.startupTime) {
+            const timeSinceStartup = Date.now() - this.bot.startupTime;
+            if (timeSinceStartup < this.bot.startupGracePeriod) {
+                logger.warn(`⚠️ Blocked tool execution during startup grace period (${Math.round(timeSinceStartup)}ms since startup)`);
+                await reply('Bot is still initializing. Please wait a moment and try again.');
+                return;
+            }
+        }
+
+        // For casual greetings, respond without tools to prevent executing old tasks
+        if (this.isCasualGreeting(content)) {
+            const greetings = ['Hey!', 'Hi!', 'Hello!', 'Hey there!', 'Hi there!'];
+            const response = greetings[Math.floor(Math.random() * greetings.length)];
+            await reply(response);
+            // Don't save casual greetings to conversation history to prevent context leakage
+            return;
+        }
 
         // Get available tools from plugins
         const tools = this.pluginRegistry.getAITools(ctx.isAdmin);
@@ -387,6 +549,8 @@ class MessageRouter {
                     ],
                     tools,
                     onToolCall: async (toolCall) => {
+                        // Send immediate acknowledgment before executing tool
+                        await this.sendToolAcknowledgment(ctx, toolCall);
                         return this.executeToolCall(ctx, toolCall);
                     },
                 }),
@@ -398,10 +562,17 @@ class MessageRouter {
             await this.memory.addToConversation(userId, platform, 'user', content);
             await this.memory.addToConversation(userId, platform, 'assistant', response);
 
+            // Clean up wrench retries for this request
+            this.wrenchRetries.delete(requestId);
+
             // Send response
             await reply(response);
         } catch (error) {
             logger.error(`[${requestId}] AI conversation failed:`, error);
+            
+            // Clean up wrench retries
+            this.wrenchRetries.delete(requestId);
+            
             await reply('❌ AI request failed. Please try again.');
         }
     }
@@ -432,15 +603,18 @@ ${this.config.systemPrompt ? `## Personality\n${this.config.systemPrompt}\n` : '
 
 ## Response Style
 - Be concise. Max 2-3 sentences for casual chat.
-- For tasks: execute silently, report results briefly.
+- For tasks: ALWAYS send an acknowledgment message FIRST before executing tools (e.g., "📥 Downloading video...", "🎨 Generating image...", "⏰ Setting reminder...")
+- After sending acknowledgment, execute the tool silently, then report results briefly.
 - Don't list capabilities unprompted.
 - Don't ask "anything else?" after completing tasks.
 - Recognize casual acknowledgments (okay, thanks, cool, got it, alright) - just acknowledge briefly, don't take action.
 - CRITICAL: Focus ONLY on the current message. NEVER reference previous conversations, past messages, or earlier context.
-- If user says "hey" or "hi", just say "hey" or "hi" back. Nothing else.
+- If user says "hey" or "hi", just say "hey" or "hi" back. DO NOT execute any tools. DO NOT continue previous tasks.
 - If user asks a simple question, answer ONLY that question. Don't add extra information from previous conversations.
 - Treat each message as completely independent - ignore conversation history unless the user explicitly references it.
 - Don't volunteer information from previous messages. Only use what's in the current message.
+- CRITICAL: DO NOT execute tools unless the user EXPLICITLY asks you to do something in the current message.
+- If the user just says "hey", "hi", or any casual greeting, respond with a greeting ONLY. Do not execute any tools or continue any previous tasks.
 
 ## Available Tools
 ${toolList}
@@ -473,7 +647,10 @@ You have FULL OS access via tools:
 - Remember information across sessions
 
 ## Tool Usage
-- Execute tools when the user asks you to do something
+- ONLY execute tools when the user EXPLICITLY asks you to do something in the CURRENT message
+- DO NOT execute tools for casual greetings like "hey", "hi", "hello", "what's up"
+- DO NOT continue or complete tasks from previous messages unless the user explicitly asks you to
+- DO NOT assume the user wants you to complete old tasks just because they send a message
 - For file paths on Windows, use backslashes or forward slashes
 - Always report success/failure after tool use
 - If something fails, explain why and suggest alternatives
@@ -516,15 +693,62 @@ You have FULL OS access via tools:
     }
 
     /**
+     * Send immediate acknowledgment when a tool is about to execute
+     */
+    async sendToolAcknowledgment(ctx, toolCall) {
+        const { name } = toolCall;
+        const tool = this.pluginRegistry.getTool(name);
+        
+        if (!tool) return;
+
+        // Generate user-friendly acknowledgment message
+        const toolName = name.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim();
+        // Don't send automatic acknowledgments - let AI handle it
+        // Only send for non-video tools that need immediate feedback
+        const silentTools = [
+            'downloadVideo', 'downloadAndClipVideo', 'clipVideoFromMiddle', 
+            'sendVideo', 'generateImage', 'generateAndSaveImage'
+        ];
+        
+        if (silentTools.includes(name)) {
+            // Let AI send the acknowledgment message
+            return;
+        }
+
+        const acknowledgments = {
+            'setReminder': '⏰ Setting reminder...',
+            'createGitHubRepository': '🔨 Creating GitHub repository...',
+            'editGitHubFile': '✏️ Editing file...',
+            'getGitHubFile': '📄 Getting file...',
+            'deleteGitHubFile': '🗑️ Deleting file...',
+            'gitAdd': '📝 Staging files...',
+            'gitCommit': '💾 Committing changes...',
+            'gitPush': '🚀 Pushing to repository...',
+            'initializeGitRepository': '🔧 Initializing repository...',
+            'createFolder': '📁 Creating folder...',
+            'createFile': '📝 Creating file...',
+        };
+
+        const message = acknowledgments[name];
+        if (message) {
+            // Send acknowledgment immediately (non-blocking)
+            ctx.message.reply(message).catch(error => {
+                logger.warn(`Failed to send tool acknowledgment for ${name}: ${error.message}`);
+            });
+        }
+    }
+
+    /**
      * Execute a tool call from AI
      */
     async executeToolCall(ctx, toolCall) {
         const { name, arguments: args } = toolCall;
 
-        logger.info(`Executing tool: ${name}`, args);
+        logger.info(`Executing tool: ${name}`, JSON.stringify(args));
 
         // Validate tool call
         if (!name || typeof name !== 'string') {
+            logger.error(`Invalid tool name: ${name}`);
             return { error: 'Invalid tool name' };
         }
 
@@ -533,6 +757,8 @@ You have FULL OS access via tools:
             logger.warn(`Tool not found: ${name}`);
             return { error: `Tool not found: ${name}` };
         }
+        
+        logger.info(`Tool found: ${name}, has execute function: ${typeof tool.execute === 'function'}`);
 
         // Check admin requirement
         if (tool.requiresAdmin && !ctx.isAdmin) {
@@ -551,16 +777,72 @@ You have FULL OS access via tools:
         }
 
         try {
+            logger.info(`Calling tool.execute for ${name} with args:`, JSON.stringify(args));
             // Execute tool with timeout (30 seconds for tools)
             const result = await withTimeout(
                 tool.execute(args, ctx),
                 30000,
                 `Tool ${name} timed out`
             );
+            logger.info(`Tool ${name} executed successfully, result:`, JSON.stringify(result));
             return { success: true, result };
         } catch (error) {
             const requestId = ctx.requestId || 'unknown';
             logger.error(`[${requestId}] Tool ${name} failed:`, error);
+            logger.error(`[${requestId}] Tool ${name} error stack:`, error.stack);
+            
+            // Try to use wrench to diagnose and potentially fix the error (max 3 attempts)
+            const wrenchHandler = getWrenchHandler();
+            if (wrenchHandler) {
+                const retryKey = `${requestId}_${name}`;
+                const retryCount = this.wrenchRetries.get(retryKey) || 0;
+                
+                if (retryCount < 3) {
+                    try {
+                        logger.info(`[${requestId}] Wrench analyzing error for tool ${name}... (attempt ${retryCount + 1}/3)`);
+                        this.wrenchRetries.set(retryKey, retryCount + 1);
+                        
+                        const resolution = await wrenchHandler.resolveError(error.message || error, ctx, {
+                            autoFix: ctx.isAdmin && retryCount === 2, // Only auto-fix on final attempt for admins
+                            autoExecute: false, // Don't auto-execute from tool errors (safety)
+                        });
+                        
+                        if (resolution.handled) {
+                            logger.info(`[${requestId}] Wrench handled the error for tool ${name}`);
+                            this.wrenchRetries.delete(retryKey);
+                            return {
+                                error: error.message || 'Tool execution failed',
+                                wrenchResolution: resolution,
+                                wrenchHandled: true,
+                            };
+                        }
+                        
+                        // Only return suggestions on final attempt
+                        if (retryCount === 2) {
+                            this.wrenchRetries.delete(retryKey);
+                            return {
+                                error: error.message || 'Tool execution failed',
+                                wrenchDiagnosis: resolution.message,
+                                wrenchSuggestion: resolution.suggestedCommand || resolution.installCommand,
+                                wrenchCategory: resolution.category,
+                            };
+                        } else {
+                            // Return simple error for first 2 attempts (no wrench spam)
+                            return { error: error.message || 'Tool execution failed' };
+                        }
+                    } catch (wrenchError) {
+                        logger.warn(`[${requestId}] Wrench failed to analyze error: ${wrenchError.message}`);
+                        if (retryCount === 2) {
+                            this.wrenchRetries.delete(retryKey);
+                        }
+                    }
+                } else {
+                    // Max retries reached
+                    this.wrenchRetries.delete(retryKey);
+                    logger.warn(`[${requestId}] Wrench max retries reached for tool ${name}`);
+                }
+            }
+            
             // Don't expose full error stack to AI, just the message
             return { error: error.message || 'Tool execution failed' };
         }

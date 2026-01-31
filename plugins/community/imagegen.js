@@ -133,10 +133,10 @@ module.exports = new Plugin({
             execute: async (params, ctx) => {
                 // Note: DALL-E image editing requires specific format
                 // This is a simplified example
-                const apiKey = getOpenAIKey(ctx);
+                const keyInfo = getAPIKey(ctx);
 
-                if (!apiKey) {
-                    return { success: false, error: 'OpenAI API key not configured' };
+                if (!keyInfo) {
+                    return { success: false, error: 'API key not configured' };
                 }
 
                 try {
@@ -154,20 +154,21 @@ module.exports = new Plugin({
     },
 });
 
-// Get OpenAI API key from config or environment
-function getOpenAIKey(ctx) {
-    // Try config.json first
+// Get API key from config or environment (prefer OpenRouter if available)
+function getAPIKey(ctx) {
+    // Try config.json first - prefer OpenRouter
     if (ctx?.bot) {
         const config = ctx.bot.getConfig();
-        if (config?.ai?.openaiKey) {
-            return { key: config.ai.openaiKey, isOpenRouter: false };
-        }
+        // Prefer OpenRouter key if available
         if (config?.ai?.openrouterKey) {
             return { key: config.ai.openrouterKey, isOpenRouter: true };
         }
+        if (config?.ai?.openaiKey) {
+            return { key: config.ai.openaiKey, isOpenRouter: false };
+        }
     }
     
-    // Fallback to environment variables
+    // Fallback to environment variables - prefer OpenRouter
     if (process.env.OPENROUTER_API_KEY) {
         return { key: process.env.OPENROUTER_API_KEY, isOpenRouter: true };
     }
@@ -177,35 +178,60 @@ function getOpenAIKey(ctx) {
     return null;
 }
 
-// Generate image using DALL-E
+// Generate image using DALL-E via OpenRouter or OpenAI
 async function generateImage(prompt, options = {}, ctx = null) {
-    const keyInfo = getOpenAIKey(ctx);
+    const keyInfo = getAPIKey(ctx);
 
     if (!keyInfo) {
         return {
             success: false,
-            error: 'No OpenAI API key configured. Add openaiKey to config.json under ai section'
+            error: 'No API key configured. Add openrouterKey or openaiKey to config.json under ai section'
         };
     }
 
     const { size = '1024x1024', style = 'vivid' } = options;
 
     try {
-        // Use OpenAI directly
-        const response = await fetch('https://api.openai.com/v1/images/generations', {
-            method: 'POST',
-            headers: {
+        let url, headers, body;
+
+        if (keyInfo.isOpenRouter) {
+            // Use OpenRouter with openai/gpt-5-image model
+            url = 'https://openrouter.ai/api/v1/images/generations';
+            headers = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${keyInfo.key}`,
-            },
-            body: JSON.stringify({
+                'HTTP-Referer': 'https://github.com/freppebot',
+                'X-Title': 'FreppeBot',
+            };
+            body = JSON.stringify({
+                model: 'openai/gpt-5-image',
+                prompt,
+                n: 1,
+                size,
+                style,
+                response_format: 'url',
+            });
+        } else {
+            // Use OpenAI directly
+            url = 'https://api.openai.com/v1/images/generations';
+            headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${keyInfo.key}`,
+            };
+            body = JSON.stringify({
                 model: 'dall-e-3',
                 prompt,
                 n: 1,
                 size,
                 style,
                 response_format: 'url',
-            }),
+            });
+        }
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers,
+            body,
         });
 
         const data = await response.json();
@@ -214,10 +240,18 @@ async function generateImage(prompt, options = {}, ctx = null) {
             return { success: false, error: data.error.message };
         }
 
+        if (!response.ok) {
+            return { 
+                success: false, 
+                error: `API error: ${response.status} ${response.statusText}` 
+            };
+        }
+
         return {
             success: true,
             url: data.data[0].url,
             revisedPrompt: data.data[0].revised_prompt,
+            provider: keyInfo.isOpenRouter ? 'OpenRouter' : 'OpenAI',
         };
     } catch (error) {
         return { success: false, error: error.message };
