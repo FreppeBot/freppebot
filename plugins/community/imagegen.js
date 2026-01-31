@@ -155,16 +155,18 @@ module.exports = new Plugin({
 });
 
 // Get API key from config or environment (prefer OpenRouter if available)
+// Uses the same OpenRouter key from config.json that's used for AI models
 function getAPIKey(ctx) {
-    // Try config.json first - prefer OpenRouter
+    // Try config.json first - prefer OpenRouter (same key used for AI)
     if (ctx?.bot) {
         const config = ctx.bot.getConfig();
-        // Prefer OpenRouter key if available
-        if (config?.ai?.openrouterKey) {
-            return { key: config.ai.openrouterKey, isOpenRouter: true };
+        // The normalized config has openrouterKey at the top level (not under ai)
+        // This is the same key used for AI model requests
+        if (config?.openrouterKey) {
+            return { key: config.openrouterKey, isOpenRouter: true };
         }
-        if (config?.ai?.openaiKey) {
-            return { key: config.ai.openaiKey, isOpenRouter: false };
+        if (config?.openaiKey) {
+            return { key: config.openaiKey, isOpenRouter: false };
         }
     }
     
