@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation - FreppeBot</title>
+    <link rel="icon" type="image/png" href="logo.png">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="index.html" class="logo">
+                <img src="logo.png" alt="">
+                <span>FreppeBot</span>
+            </a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="https://github.com/freppebot" class="btn-outline">GitHub</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="docs-layout">
+        <aside class="sidebar">
+            <div>
+                <h4>Getting Started</h4>
+                <ul>
+                    <li><a href="#intro">Introduction</a></li>
+                    <li><a href="#install">Installation</a></li>
+                    <li><a href="#config">Configuration</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4>Architecture</h4>
+                <ul>
+                    <li><a href="#architecture">How It Works</a></li>
+                    <li><a href="#ai">AI Providers</a></li>
+                    <li><a href="#adapters">Platform Adapters</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4>Plugins</h4>
+                <ul>
+                    <li><a href="#plugins">Plugin System</a></li>
+                    <li><a href="#core-plugins">Core Plugins</a></li>
+                    <li><a href="#community-plugins">Community Plugins</a></li>
+                    <li><a href="#create-plugin">Create a Plugin</a></li>
+                    <li><a href="#plugin-manager">Plugin Manager</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4>Security & Monitoring</h4>
+                <ul>
+                    <li><a href="#security">Security Features</a></li>
+                    <li><a href="#monitoring">Health Monitoring</a></li>
+                    <li><a href="#backups">Database Backups</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4>Deployment</h4>
+                <ul>
+                    <li><a href="#docker">Docker</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4>Troubleshooting</h4>
+                <ul>
+                    <li><a href="#troubleshooting">Common Issues</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="docs-content">
+            <h1>FreppeBot Documentation</h1>
+            <p>Everything you need to know about setting up, configuring, and extending FreppeBot.</p>
+
+            <!-- INTRODUCTION -->
+            <h2 id="intro">Introduction</h2>
+            <p>FreppeBot is a self-hosted AI assistant framework. Unlike hosted solutions, you control everything: the
+                AI model, the data, and the functionality.</p>
+            <p>Key features:</p>
+            <ul>
+                <li><strong>Multi-model support</strong> - Connect to OpenAI, Anthropic, Kimi, or 100+ models via
+                    OpenRouter</li>
+                <li><strong>Plugin architecture</strong> - Extend functionality with simple JavaScript files</li>
+                <li><strong>Persistent memory</strong> - SQLite database stores conversations and user preferences</li>
+                <li><strong>Multi-platform</strong> - Works on Discord and Telegram out of the box</li>
+                <li><strong>Security features</strong> - Rate limiting, command cooldowns, and input validation</li>
+                <li><strong>Health monitoring</strong> - Track performance, system resources, and bot status</li>
+                <li><strong>Automatic backups</strong> - Database backups every 6 hours with manual controls</li>
+                <li><strong>Robust error handling</strong> - Graceful error recovery with helpful user messages</li>
+            </ul>
+
+            <!-- INSTALLATION -->
+            <h2 id="install">Installation</h2>
+            <p>Requirements: Node.js 18+ and npm.</p>
+            <pre><code>git clone https://github.com/freppebot/freppebot.git
+cd freppebot
+npm install</code></pre>
+            <p>Run the interactive setup wizard:</p>
+            <pre><code>npm run setup</code></pre>
+            <p>This creates <code>config.json</code> with your AI provider keys, platform tokens, and bot personality.
+            </p>
+            <p>Start the bot:</p>
+            <pre><code>npm start</code></pre>
+
+            <!-- CONFIGURATION -->
+            <h2 id="config">Configuration</h2>
+            <p>All settings are stored in <code>config.json</code>. The setup wizard generates this file, but you can
+                edit it manually.</p>
+            <h3>Bot Settings</h3>
+            <table>
+                <tr>
+                    <th>Field</th>
+                    <th>Description</th>
+                    <th>Default</th>
+                </tr>
+                <tr>
+                    <td><code>bot.name</code></td>
+                    <td>The bot's display name</td>
+                    <td><code>FreppeBot</code></td>
+                </tr>
+                <tr>
+                    <td><code>bot.commandPrefix</code></td>
+                    <td>Prefix for commands</td>
+                    <td><code>!</code></td>
+                </tr>
+                <tr>
+                    <td><code>bot.logLevel</code></td>
+                    <td>Logging level: <code>error</code>, <code>warn</code>, <code>info</code>, <code>debug</code></td>
+                    <td><code>info</code></td>
+                </tr>
+                <tr>
+                    <td><code>bot.systemPrompt</code></td>
+                    <td>Instructions for AI personality and behavior</td>
+                    <td>Default prompt</td>
+                </tr>
+                <tr>
+                    <td><code>bot.personality</code></td>
+                    <td>Personality settings (style, tone, useEmojis)</td>
+                    <td>See example</td>
+                </tr>
+            </table>
+            <h3>Platform Settings</h3>
+            <table>
+                <tr>
+                    <th>Field</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>platforms.discord.enabled</code></td>
+                    <td>Enable Discord adapter</td>
+                </tr>
+                <tr>
+                    <td><code>platforms.discord.token</code></td>
+                    <td>Discord bot token from Developer Portal</td>
+                </tr>
+                <tr>
+                    <td><code>platforms.discord.allowedUsers</code></td>
+                    <td>Array of user IDs (empty = allow all)</td>
+                </tr>
+                <tr>
+                    <td><code>platforms.discord.adminUsers</code></td>
+                    <td>Array of admin user IDs</td>
+                </tr>
+                <tr>
+                    <td><code>platforms.telegram.*</code></td>
+                    <td>Same structure for Telegram</td>
+                </tr>
+            </table>
+            <h3>Plugin Settings</h3>
+            <table>
+                <tr>
+                    <th>Field</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>plugins.hotReload</code></td>
+                    <td>Auto-reload plugins when files change (default: <code>true</code>)</td>
+                </tr>
+                <tr>
+                    <td><code>plugins.disabled</code></td>
+                    <td>Array of plugin names to disable</td>
+                </tr>
+            </table>
+            <h3>AI Settings</h3>
+            <table>
+                <tr>
+                    <th>Field</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>ai.defaultProvider</code></td>
+                    <td>Which provider to use: <code>openrouter</code>, <code>openai</code>, <code>anthropic</code>,
+                        <code>kimi</code></td>
+                </tr>
+                <tr>
+                    <td><code>ai.defaultModel</code></td>
+                    <td>Model identifier (e.g., <code>anthropic/claude-sonnet-4.5</code> or <code>openai/gpt-5.2</code>)</td>
+                </tr>
+                <tr>
+                    <td><code>ai.openrouterKey</code></td>
+                    <td>Your OpenRouter API key</td>
+                </tr>
+            </table>
+
+            <!-- ARCHITECTURE -->
+            <h2 id="architecture">How It Works</h2>
+            <p>FreppeBot has a modular architecture with four main components:</p>
+            <h3>1. Core Engine</h3>
+            <p>The <code>FreppeBot</code> class in <code>src/core/bot.js</code> orchestrates everything. It initializes
+                the database, AI manager, plugin loader, and platform adapters.</p>
+            <h3>2. Message Router</h3>
+            <p>When a message arrives, the router (<code>src/core/router.js</code>) decides how to handle it:</p>
+            <ul>
+                <li>If it starts with the command prefix, it looks for a matching plugin command</li>
+                <li>Otherwise, it sends the message to the AI along with available tools</li>
+                <li>When the AI calls a tool, the router executes it and returns the result</li>
+            </ul>
+            <h3>3. AI Manager</h3>
+            <p>The AI manager (<code>src/ai/manager.js</code>) abstracts different AI providers. It handles message
+                formatting, tool call parsing, and provider-specific quirks.</p>
+            <h3>4. Plugin System</h3>
+            <p>Plugins provide commands (user-invoked) and tools (AI-invoked). The loader scans <code>plugins/</code>
+                folders and registers everything automatically.</p>
+            <h3>5. Utilities</h3>
+            <p>Additional utilities provide essential functionality:</p>
+            <ul>
+                <li><strong>Rate Limiter</strong> - Prevents abuse with per-user request limits</li>
+                <li><strong>Cooldown Manager</strong> - Enforces delays between command executions</li>
+                <li><strong>Health Monitor</strong> - Tracks bot performance and system metrics</li>
+                <li><strong>Backup Manager</strong> - Handles automatic and manual database backups</li>
+                <li><strong>Input Validator</strong> - Sanitizes and validates user input</li>
+            </ul>
+
+            <!-- AI PROVIDERS -->
+            <h2 id="ai">AI Providers</h2>
+            <p>FreppeBot supports multiple AI backends:</p>
+            <table>
+                <tr>
+                    <th>Provider</th>
+                    <th>Models</th>
+                    <th>Notes</th>
+                </tr>
+                <tr>
+                    <td>OpenRouter</td>
+                    <td>100+ models</td>
+                    <td>Recommended. Single API key for Claude, GPT-5, Llama, etc.</td>
+                </tr>
+                <tr>
+                    <td>OpenAI</td>
+                    <td>GPT-5.2, GPT-5.2 Pro</td>
+                    <td>Direct connection to OpenAI API</td>
+                </tr>
+                <tr>
+                    <td>Anthropic</td>
+                    <td>Claude Sonnet 4.5, Opus 4.5</td>
+                    <td>Direct connection to Anthropic API</td>
+                </tr>
+                <tr>
+                    <td>Kimi</td>
+                    <td>Kimi k2.5, v1/v2</td>
+                    <td>Moonshot AI's models</td>
+                </tr>
+            </table>
+            <p>Set your preferred provider in <code>config.json</code> under <code>ai.defaultProvider</code>.</p>
+
+            <!-- ADAPTERS -->
+            <h2 id="adapters">Platform Adapters</h2>
+            <p>Adapters connect FreppeBot to messaging platforms.</p>
+            <h3>Discord</h3>
+            <p>Uses Discord.js. Requires a bot token from the Discord Developer Portal.</p>
+            <h3>Telegram</h3>
+            <p>Uses node-telegram-bot-api. Get a token from BotFather.</p>
+            <p>Both adapters normalize messages into a common format before passing them to the router.</p>
+
+            <!-- PLUGINS -->
+            <h2 id="plugins">Plugin System</h2>
+            <p>Plugins are the primary way to extend FreppeBot. Each plugin can provide:</p>
+            <ul>
+                <li><strong>Commands</strong> - User-triggered actions (e.g., <code>!weather tokyo</code>)</li>
+                <li><strong>Tools</strong> - Functions the AI can call automatically</li>
+            </ul>
+            <p>Plugins live in two folders:</p>
+            <ul>
+                <li><code>plugins/core/</code> - Essential plugins (memory, reminders, web fetch)</li>
+                <li><code>plugins/community/</code> - Optional plugins (weather, crypto, spotify, etc.)</li>
+            </ul>
+
+            <h2 id="core-plugins">Core Plugins & Commands</h2>
+            <p>These plugins are always loaded and provide essential functionality:</p>
+            <h3>Built-in Commands</h3>
+            <table>
+                <tr>
+                    <th>Command</th>
+                    <th>Description</th>
+                    <th>Admin Only?</th>
+                </tr>
+                <tr>
+                    <td><code>!help</code></td>
+                    <td>Show available commands and help information</td>
+                    <td>❌</td>
+                </tr>
+                <tr>
+                    <td><code>!plugins</code></td>
+                    <td>List all loaded plugins with their commands and tools</td>
+                    <td>❌</td>
+                </tr>
+                <tr>
+                    <td><code>!health</code> / <code>!status</code></td>
+                    <td>Show bot health status, statistics, and system information</td>
+                    <td>❌</td>
+                </tr>
+                <tr>
+                    <td><code>!backup</code></td>
+                    <td>Create a manual database backup</td>
+                    <td>✅</td>
+                </tr>
+                <tr>
+                    <td><code>!backup list</code></td>
+                    <td>List all available backups</td>
+                    <td>✅</td>
+                </tr>
+                <tr>
+                    <td><code>!backup delete &lt;file&gt;</code></td>
+                    <td>Delete a specific backup file</td>
+                    <td>✅</td>
+                </tr>
+            </table>
+            <h3>Built-in Core Plugins</h3>
+            <p><strong>These plugins are part of FreppeBot core and are always loaded. They cannot be disabled.</strong></p>
+            <table>
+                <tr>
+                    <th>Plugin</th>
+                    <th>Commands</th>
+                    <th>AI Tools</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>memory</code></td>
+                    <td><code>!remember</code>, <code>!recall</code></td>
+                    <td><code>remember</code>, <code>recall</code></td>
+                    <td>Stores and recalls information across conversations</td>
+                </tr>
+                <tr>
+                    <td><code>reminder</code></td>
+                    <td><code>!remind</code>, <code>!reminders</code></td>
+                    <td><code>setReminder</code>, <code>listReminders</code></td>
+                    <td>Sets timed reminders that notify users</td>
+                </tr>
+                <tr>
+                    <td><code>system</code></td>
+                    <td><code>!status</code>, <code>!sysinfo</code></td>
+                    <td><code>getSystemInfo</code></td>
+                    <td>Bot and system information</td>
+                </tr>
+                <tr>
+                    <td><code>files</code></td>
+                    <td><code>!ls</code>, <code>!cat</code></td>
+                    <td><code>readFile</code>, <code>writeFile</code>, <code>listDirectory</code></td>
+                    <td>File operations (admin only)</td>
+                </tr>
+                <tr>
+                    <td><code>shell</code></td>
+                    <td><code>!shell</code></td>
+                    <td><code>executeCommand</code></td>
+                    <td>Execute shell commands (admin only)</td>
+                </tr>
+                <tr>
+                    <td><code>os</code></td>
+                    <td><code>!run</code>, <code>!read</code>, <code>!write</code></td>
+                    <td><code>readFile</code>, <code>writeFile</code>, <code>runCommand</code></td>
+                    <td>OS-level operations (admin only)</td>
+                </tr>
+                <tr>
+                    <td><code>web</code></td>
+                    <td><code>!fetch</code></td>
+                    <td><code>fetchUrl</code>, <code>webSearch</code></td>
+                    <td>Fetches and reads web pages</td>
+                </tr>
+            </table>
+
+            <h2 id="community-plugins">Community Plugins</h2>
+            <p><strong>These plugins are included with FreppeBot but are optional. They can be disabled via <code>plugins.disabled</code> in config.json. Located in <code>plugins/community/</code>.</strong></p>
+            <table>
+                <tr>
+                    <th>Plugin</th>
+                    <th>Commands</th>
+                    <th>AI Tools</th>
+                    <th>API Key</th>
+                </tr>
+                <tr>
+                    <td>🌤️ <code>weather</code></td>
+                    <td><code>!weather &lt;location&gt;</code></td>
+                    <td><code>getWeather</code></td>
+                    <td>❌ Free</td>
+                </tr>
+                <tr>
+                    <td>💰 <code>crypto</code></td>
+                    <td><code>!price &lt;symbol&gt;</code>, <code>!trending</code></td>
+                    <td><code>getCryptoPrice</code>, <code>getTrending</code></td>
+                    <td>❌ Free</td>
+                </tr>
+                <tr>
+                    <td>🎵 <code>spotify</code></td>
+                    <td><code>!song &lt;query&gt;</code>, <code>!artist &lt;name&gt;</code></td>
+                    <td><code>searchMusic</code></td>
+                    <td>✅ Spotify API</td>
+                </tr>
+                <tr>
+                    <td>📅 <code>calendar</code></td>
+                    <td><code>!event</code>, <code>!agenda</code></td>
+                    <td><code>addEvent</code>, <code>getEvents</code></td>
+                    <td>❌ Local</td>
+                </tr>
+                <tr>
+                    <td>🔗 <code>urlshortener</code></td>
+                    <td><code>!shorten &lt;url&gt;</code></td>
+                    <td><code>shortenUrl</code></td>
+                    <td>❌ Free</td>
+                </tr>
+                <tr>
+                    <td>📧 <code>email</code></td>
+                    <td><code>!email to@x.com Subject | Body</code></td>
+                    <td><code>sendEmail</code></td>
+                    <td>✅ SMTP</td>
+                </tr>
+                <tr>
+                    <td>🐦 <code>twitter</code></td>
+                    <td><code>!tweet</code>, <code>!trends</code></td>
+                    <td><code>postTweet</code>, <code>getTrends</code></td>
+                    <td>✅ Twitter API</td>
+                </tr>
+                <tr>
+                    <td>🎨 <code>imagegen</code></td>
+                    <td><code>!imagine &lt;prompt&gt;</code></td>
+                    <td><code>generateImage</code></td>
+                    <td>✅ OpenAI API</td>
+                </tr>
+                <tr>
+                    <td>📝 <code>notes</code></td>
+                    <td><code>!note</code>, <code>!notes</code></td>
+                    <td><code>saveNote</code>, <code>getNotes</code></td>
+                    <td>❌ Local</td>
+                </tr>
+                <tr>
+                    <td>🔐 <code>password</code></td>
+                    <td><code>!password [length]</code></td>
+                    <td><code>generatePassword</code></td>
+                    <td>❌ Local</td>
+                </tr>
+                <tr>
+                    <td>📱 <code>qrcode</code></td>
+                    <td><code>!qr &lt;text&gt;</code></td>
+                    <td><code>generateQRCode</code></td>
+                    <td>❌ Free API</td>
+                </tr>
+                <tr>
+                    <td>🌐 <code>translate</code></td>
+                    <td><code>!translate &lt;text&gt; to &lt;lang&gt;</code></td>
+                    <td><code>translateText</code></td>
+                    <td>❌ Free API</td>
+                </tr>
+                <tr>
+                    <td>🔍 <code>brave</code></td>
+                    <td><code>!search &lt;query&gt;</code></td>
+                    <td><code>webSearch</code></td>
+                    <td>✅ Brave API</td>
+                </tr>
+                <tr>
+                    <td>🐙 <code>github</code></td>
+                    <td><code>!github &lt;query&gt;</code>, <code>!github-init</code>, <code>!github-commit</code>, <code>!github-push</code></td>
+                    <td><code>searchGitHub</code>, <code>createFolder</code>, <code>createFile</code>, <code>initializeGitRepository</code>, <code>gitCommit</code>, <code>gitPush</code>, <code>createGitHubRepository</code></td>
+                    <td>✅ GitHub Token (for repo creation)</td>
+                </tr>
+                <tr>
+                    <td>📰 <code>news</code></td>
+                    <td><code>!news [topic]</code></td>
+                    <td><code>getNews</code></td>
+                    <td>✅ NewsAPI</td>
+                </tr>
+                <tr>
+                    <td>🎬 <code>reddit</code></td>
+                    <td><code>!reddit &lt;subreddit&gt;</code></td>
+                    <td><code>searchReddit</code></td>
+                    <td>❌ Free</td>
+                </tr>
+                <tr>
+                    <td>📈 <code>stocks</code></td>
+                    <td><code>!stock &lt;symbol&gt;</code></td>
+                    <td><code>getStockPrice</code></td>
+                    <td>❌ Free (Yahoo Finance)</td>
+                </tr>
+            </table>
+            <p><strong>Note:</strong> Community plugins can be disabled by adding their name to <code>plugins.disabled</code> array in <code>config.json</code>.</p>
+
+            <!-- CREATE PLUGIN -->
+            <h2 id="create-plugin">Create a Plugin</h2>
+            <p>Create a new file in <code>plugins/community/</code>:</p>
+            <pre><code>// plugins/community/hello.js
+const { Plugin } = require('../../src/plugins/sdk');
+
+module.exports = new Plugin({
+    name: 'hello',
+    description: 'A simple greeting plugin',
+    version: '1.0.0',
+
+    // Commands are triggered by users
+    commands: {
+        greet: {
+            description: 'Greet someone',
+            handler: async (ctx, args) => {
+                const name = args[0] || 'friend';
+                return `Hello, ${name}!`;
+            },
+        },
+    },
+
+    // Tools are called by the AI
+    tools: {
+        sayHello: {
+            description: 'Greet a person by name',
+            parameters: {
+                name: { 
+                    type: 'string', 
+                    description: 'Name to greet' 
+                },
+            },
+            execute: async (params, ctx) => {
+                return { 
+                    message: `Hello, ${params.name}!` 
+                };
+            },
+        },
+    },
+});</code></pre>
+            <p>After saving, the plugin auto-loads (if hot reload is enabled) or loads on next restart.</p>
+            <div class="info-box">
+                <p><strong>Tip:</strong> The <code>ctx</code> object gives you access to the message, user info, bot
+                    instance, and memory store.</p>
+            </div>
+
+            <!-- PLUGIN MANAGER -->
+            <h2 id="plugin-manager">Plugin Manager</h2>
+            <p>FreppeBot includes a plugin manager (similar to npm) for downloading and managing plugins from URLs.</p>
+
+            <h3>Installation</h3>
+            <p>Use the plugin manager via npm scripts:</p>
+            <pre><code>npm run plugin &lt;command&gt;</code></pre>
+            <p>Or install globally to use the <code>freppe</code> command:</p>
+            <pre><code>npm install -g .
+freppe &lt;command&gt;</code></pre>
+
+            <h3>Download Plugins</h3>
+            <p>Download and install plugins from URLs:</p>
+            <pre><code># From raw GitHub file
+npm run plugin download https://raw.githubusercontent.com/user/repo/main/plugin.js
+
+# From GitHub blob URL (auto-converted)
+npm run plugin download https://github.com/user/repo/blob/main/plugin.js
+
+# Force overwrite existing plugin
+npm run plugin download &lt;url&gt; --force</code></pre>
+            <p>The plugin manager automatically:</p>
+            <ul>
+                <li>Normalizes GitHub URLs to raw content URLs</li>
+                <li>Validates the plugin before installation</li>
+                <li>Extracts plugin name and metadata</li>
+                <li>Tracks the source URL for future updates</li>
+            </ul>
+
+            <h3>List Plugins</h3>
+            <p>View all installed plugins:</p>
+            <pre><code>npm run plugin list</code></pre>
+            <p>Shows plugin name, version, description, installation date, and source URL.</p>
+
+            <h3>Remove Plugins</h3>
+            <p>Uninstall a plugin:</p>
+            <pre><code>npm run plugin remove &lt;plugin-name&gt;</code></pre>
+            <p>This removes the plugin file and updates the metadata.</p>
+
+            <h3>Update Plugins</h3>
+            <p>Update a plugin to the latest version from its original URL:</p>
+            <pre><code>npm run plugin update &lt;plugin-name&gt;</code></pre>
+            <p>The plugin manager remembers the original URL and re-downloads from it.</p>
+
+            <h3>Plugin Validation</h3>
+            <p>Before installation, plugins are validated to ensure:</p>
+            <ul>
+                <li>Valid JavaScript syntax</li>
+                <li>Exports a Plugin instance</li>
+                <li>Has required fields (name, description)</li>
+                <li>Can be loaded without errors</li>
+            </ul>
+
+            <h3>Metadata Storage</h3>
+            <p>Plugin metadata is stored in <code>plugins/community/.freppe-plugins.json</code>:</p>
+            <ul>
+                <li>Original download URL</li>
+                <li>Plugin version</li>
+                <li>Installation timestamp</li>
+                <li>Plugin description</li>
+            </ul>
+            <p>This metadata enables features like automatic updates and source tracking.</p>
+
+            <!-- SECURITY -->
+            <h2 id="security">Security Features</h2>
+            <p>FreppeBot includes multiple layers of security to protect your bot and prevent abuse:</p>
+            
+            <h3>Rate Limiting</h3>
+            <p>Prevents API abuse and cost spikes by limiting requests per user:</p>
+            <ul>
+                <li><strong>Default limit:</strong> 10 requests per minute per user</li>
+                <li><strong>Admin exemption:</strong> Admins bypass rate limits</li>
+                <li><strong>Clear feedback:</strong> Users see helpful messages when limits are reached</li>
+            </ul>
+            <p>Rate limits are tracked per user and reset automatically after the time window expires.</p>
+
+            <h3>Command Cooldowns</h3>
+            <p>Prevents command spam and accidental duplicate executions:</p>
+            <ul>
+                <li><strong>Default cooldown:</strong> 2 seconds between commands</li>
+                <li><strong>Shell commands:</strong> 5 second cooldown (prevents dangerous rapid execution)</li>
+                <li><strong>Reminder commands:</strong> 3 second cooldown</li>
+                <li><strong>Configurable:</strong> Cooldowns can be customized per command</li>
+            </ul>
+
+            <h3>Input Validation</h3>
+            <p>All user input is validated and sanitized before processing:</p>
+            <ul>
+                <li><strong>Length limits:</strong> Messages limited to 10,000 characters</li>
+                <li><strong>Sanitization:</strong> Removes null bytes and dangerous characters</li>
+                <li><strong>Type checking:</strong> Tool arguments validated against parameter schemas</li>
+                <li><strong>Parameter validation:</strong> Required parameters checked, types verified</li>
+            </ul>
+
+            <h3>Access Control</h3>
+            <p>Fine-grained access control for commands and features:</p>
+            <ul>
+                <li><strong>User whitelist:</strong> Restrict bot to specific users (empty = allow all)</li>
+                <li><strong>Admin users:</strong> Separate list of users with elevated privileges</li>
+                <li><strong>Admin-only commands:</strong> Dangerous operations require admin status</li>
+                <li><strong>Tool permissions:</strong> Plugins can mark tools as admin-only</li>
+            </ul>
+
+            <h3>Error Handling</h3>
+            <p>Secure error handling that protects system information:</p>
+            <ul>
+                <li><strong>User-friendly messages:</strong> Errors shown to users don't expose internals</li>
+                <li><strong>Detailed logging:</strong> Full error details logged for debugging</li>
+                <li><strong>Graceful degradation:</strong> Bot continues operating even when errors occur</li>
+                <li><strong>Stack traces:</strong> Available in debug mode for developers</li>
+            </ul>
+
+            <!-- MONITORING -->
+            <h2 id="monitoring">Health Monitoring</h2>
+            <p>FreppeBot includes comprehensive health monitoring to track bot performance and system status.</p>
+            
+            <h3>Health Command</h3>
+            <p>Use <code>!health</code> or <code>!status</code> to view a detailed health report:</p>
+            <pre><code>!health</code></pre>
+            <p>The health report includes:</p>
+            <ul>
+                <li><strong>Bot Status:</strong> Uptime, start time, overall health</li>
+                <li><strong>Adapters:</strong> Connection status for Discord/Telegram</li>
+                <li><strong>Statistics:</strong> Messages processed, commands executed, errors encountered</li>
+                <li><strong>Database:</strong> Message count, user count, memory entries, pending reminders</li>
+                <li><strong>System Resources:</strong> CPU usage, memory usage, disk space</li>
+                <li><strong>Plugins:</strong> Number of loaded plugins</li>
+            </ul>
+
+            <h3>Tracked Metrics</h3>
+            <p>The health monitor automatically tracks:</p>
+            <table>
+                <tr>
+                    <th>Metric</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>Messages Processed</td>
+                    <td>Total number of messages handled</td>
+                </tr>
+                <tr>
+                    <td>Commands Executed</td>
+                    <td>Total number of commands run</td>
+                </tr>
+                <tr>
+                    <td>Errors</td>
+                    <td>Number of errors encountered</td>
+                </tr>
+                <tr>
+                    <td>Last Error</td>
+                    <td>Most recent error message and timestamp</td>
+                </tr>
+                <tr>
+                    <td>System Resources</td>
+                    <td>CPU cores, memory usage, platform info</td>
+                </tr>
+            </table>
+
+            <h3>Use Cases</h3>
+            <ul>
+                <li><strong>Debugging:</strong> Check if adapters are connected properly</li>
+                <li><strong>Performance:</strong> Monitor message throughput and error rates</li>
+                <li><strong>Resource Management:</strong> Track memory and CPU usage</li>
+                <li><strong>Status Checks:</strong> Verify bot is running and healthy</li>
+            </ul>
+
+            <!-- BACKUPS -->
+            <h2 id="backups">Database Backups</h2>
+            <p>FreppeBot automatically creates backups of your database to prevent data loss.</p>
+            
+            <h3>Automatic Backups</h3>
+            <p>The bot creates backups automatically:</p>
+            <ul>
+                <li><strong>Frequency:</strong> Every 6 hours</li>
+                <li><strong>Location:</strong> <code>data/backups/</code></li>
+                <li><strong>Format:</strong> <code>freppebot-backup-YYYY-MM-DDTHH-MM-SS.db</code></li>
+                <li><strong>Retention:</strong> Last 10 backups kept automatically</li>
+            </ul>
+            <p>Backups are created silently in the background and don't impact bot performance.</p>
+
+            <h3>Manual Backups</h3>
+            <p>Create a backup on demand using the backup command:</p>
+            <pre><code>!backup</code></pre>
+            <p>This creates an immediate backup and shows you the filename and size.</p>
+
+            <h3>Backup Management</h3>
+            <p>List all available backups:</p>
+            <pre><code>!backup list</code></pre>
+            <p>This shows all backups with their sizes and creation dates.</p>
+            
+            <p>Delete a specific backup (admin only):</p>
+            <pre><code>!backup delete freppebot-backup-2024-01-01T12-00-00.db</code></pre>
+
+            <h3>Restoring Backups</h3>
+            <p>To restore from a backup:</p>
+            <ol>
+                <li>Stop the bot</li>
+                <li>Copy the backup file to <code>data/freppebot.db</code></li>
+                <li>Restart the bot</li>
+            </ol>
+            <div class="info-box">
+                <p><strong>Note:</strong> The bot automatically creates a backup of the current database before restoring, so you can always revert if needed.</p>
+            </div>
+
+            <h3>Backup Best Practices</h3>
+            <ul>
+                <li>Keep backups in a separate location for disaster recovery</li>
+                <li>Test restore procedures periodically</li>
+                <li>Monitor backup directory size</li>
+                <li>Create manual backups before major updates</li>
+            </ul>
+
+            <!-- DOCKER -->
+            <h2 id="docker">Docker Deployment</h2>
+            <p>FreppeBot includes a Dockerfile and docker-compose.yml for easy deployment.</p>
+            
+            <h3>Quick Start</h3>
+            <pre><code># Build and run
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop the bot
+docker compose down</code></pre>
+
+            <h3>Volume Mounts</h3>
+            <p>Make sure to mount your configuration and data directories:</p>
+            <pre><code>volumes:
+  - ./config.json:/app/config.json
+  - ./data:/app/data</code></pre>
+            <p>This ensures your configuration and database persist across container restarts.</p>
+
+            <h3>Environment Variables</h3>
+            <p>You can also use environment variables for configuration (see docker-compose.yml for details).</p>
+
+            <h3>Production Deployment</h3>
+            <p>For production deployments, consider:</p>
+            <ul>
+                <li>Using Docker secrets for API keys</li>
+                <li>Setting up log rotation</li>
+                <li>Configuring health checks</li>
+                <li>Using a reverse proxy for additional security</li>
+                <li>Regular backup verification</li>
+            </ul>
+
+            <!-- TROUBLESHOOTING -->
+            <h2 id="troubleshooting">Troubleshooting</h2>
+            <p>Common issues and their solutions:</p>
+
+            <h3>Bot Not Responding</h3>
+            <p>If the bot isn't responding to messages:</p>
+            <ol>
+                <li><strong>Check health status:</strong> Run <code>!health</code> to see adapter connection status</li>
+                <li><strong>Check logs:</strong> Review <code>data/freppebot.log</code> for errors</li>
+                <li><strong>Verify API keys:</strong> Ensure your AI provider API key is valid in <code>config.json</code></li>
+                <li><strong>Check permissions:</strong>
+                    <ul>
+                        <li><strong>Discord:</strong> Ensure bot has "Send Messages" and "Read Message History" permissions</li>
+                        <li><strong>Telegram:</strong> Ensure bot is started and token is correct</li>
+                    </ul>
+                </li>
+                <li><strong>User whitelist:</strong> If <code>allowedUsers</code> is set, ensure your user ID is included</li>
+            </ol>
+
+            <h3>Rate Limit Errors</h3>
+            <p>If you see rate limit messages:</p>
+            <ul>
+                <li><strong>Wait for cooldown:</strong> The message shows how long to wait</li>
+                <li><strong>Admin exemption:</strong> Add your user ID to <code>adminUsers</code> to bypass limits</li>
+                <li><strong>Adjust limits:</strong> Edit <code>src/utils/ratelimit.js</code> to change limits (requires restart)</li>
+            </ul>
+
+            <h3>Command Cooldown Messages</h3>
+            <p>If commands are on cooldown:</p>
+            <ul>
+                <li>Wait for the cooldown period shown in the error message</li>
+                <li>Admins can have cooldowns reset (feature can be added to admin commands)</li>
+                <li>Cooldowns prevent accidental duplicate commands</li>
+            </ul>
+
+            <h3>Database Issues</h3>
+            <p>If you encounter database errors:</p>
+            <ol>
+                <li><strong>Check file exists:</strong> Ensure <code>data/freppebot.db</code> exists</li>
+                <li><strong>Check permissions:</strong> Bot needs read/write access to <code>data/</code> directory</li>
+                <li><strong>Check disk space:</strong> Ensure sufficient disk space for database operations</li>
+                <li><strong>Restore from backup:</strong> Use a backup if database is corrupted</li>
+                <li><strong>View database stats:</strong> Use <code>!health</code> to see database size and stats</li>
+            </ol>
+
+            <h3>Plugin Not Loading</h3>
+            <p>If a plugin isn't working:</p>
+            <ol>
+                <li><strong>Check file location:</strong> Plugin must be in <code>plugins/core/</code> or <code>plugins/community/</code></li>
+                <li><strong>Check syntax:</strong> Ensure JavaScript syntax is valid</li>
+                <li><strong>Check disabled list:</strong> Verify plugin isn't in <code>plugins.disabled</code> array</li>
+                <li><strong>Check logs:</strong> Look for plugin loading errors in <code>data/freppebot.log</code></li>
+                <li><strong>Hot reload:</strong> If hot reload is enabled, changes should apply automatically</li>
+                <li><strong>Restart bot:</strong> Sometimes a full restart is needed</li>
+            </ol>
+
+            <h3>AI Provider Errors</h3>
+            <p>If AI responses fail:</p>
+            <ul>
+                <li><strong>Check API key:</strong> Verify API key is correct and not expired</li>
+                <li><strong>Check quota:</strong> Ensure you haven't exceeded API rate limits or quotas</li>
+                <li><strong>Check model:</strong> Verify the model name is correct for your provider</li>
+                <li><strong>Check network:</strong> Ensure bot can reach the AI provider's API</li>
+                <li><strong>Try different provider:</strong> Switch to a different provider to test</li>
+            </ul>
+
+            <h3>Memory/Reminder Issues</h3>
+            <p>If memories or reminders aren't working:</p>
+            <ul>
+                <li><strong>Check database:</strong> Use <code>!health</code> to verify database is working</li>
+                <li><strong>Check timezone:</strong> Reminders use system timezone</li>
+                <li><strong>Check permissions:</strong> Ensure bot can write to database</li>
+            </ul>
+
+            <h3>Getting Help</h3>
+            <p>If you're still having issues:</p>
+            <ul>
+                <li><strong>Check logs:</strong> Review <code>data/freppebot.log</code> for detailed error messages</li>
+                <li><strong>Enable debug mode:</strong> Set <code>bot.logLevel</code> to <code>debug</code> for more verbose logging</li>
+                <li><strong>Health report:</strong> Run <code>!health</code> and share the output</li>
+                <li><strong>GitHub Issues:</strong> Open an issue on GitHub with logs and configuration (redact API keys!)</li>
+            </ul>
+        </main>
+    </div>
+
+    <footer class="footer">
+        <p>MIT License</p>
+    </footer>
+</body>
+
+</html>

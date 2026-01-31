@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FreppeBot - Self-Hosted AI Assistant</title>
+    <meta name="description" content="A modular, self-hosted AI assistant with a powerful plugin system.">
+    <link rel="icon" type="image/png" href="logo.png">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="index.html" class="logo">
+                <img src="logo.png" alt="">
+                <span>FreppeBot</span>
+            </a>
+            <div class="nav-links">
+                <a href="docs.html">Docs</a>
+                <a href="https://github.com/freppebot" class="btn-outline">GitHub</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="hero">
+        <div class="hero-glow"></div>
+        <div class="hero-watermelon" style="background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjMDkwOTBiIi8+CjxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjQ0IiBoZWlnaHQ9IjQ0IiByeD0iMjIiIGZpbGw9IiMyMmM1NWUiLz4KPHJlY3QgeD0iMTQiIHk9IjE0IiB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHJ4PSIxOCIgZmlsbD0iI2Y4NzE3MSIvPgo8cmVjdCB4PSIxNiIgeT0iMTYiIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgcng9IjE2IiBmaWxsPSIjZWY0NDQ0Ii8+CjxyZWN0IHg9IjE4IiB5PSIxOCIgd2lkdGg9IjI4IiBoZWlnaHQ9IjI4IiByeD0iMTQiIGZpbGw9IiNkYzI2MjYiLz4KPHJlY3QgeD0iMjIiIHk9IjI0IiB3aWR0aD0iNCIgaGVpZ2h0PSI0IiByeD0iMiIgZmlsbD0iIzAwMCIvPgo8cmVjdCB4PSIzMCIgeT0iMjYiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIHJ4PSIyIiBmaWxsPSIjMDAwIi8+CjxyZWN0IHg9IjM4IiB5PSIyNCIgd2lkdGg9IjQiIGhlaWdodD0iNCIgcng9IjIiIGZpbGw9IiMwMDAiLz4KPHJlY3QgeD0iNDYiIHk9IjI2IiB3aWR0aD0iNCIgaGVpZ2h0PSI0IiByeD0iMiIgZmlsbD0iIzAwMCIvPgo8cmVjdCB4PSIyNiIgeT0iMzIiIHdpZHRoPSI0IiBoZWlnaHQ9IjQiIHJ4PSIyIiBmaWxsPSIjMDAwIi8+CjxyZWN0IHg9IjM0IiB5PSIzNCIgd2lkdGg9IjQiIGhlaWdodD0iNCIgcng9IjIiIGZpbGw9IiMwMDAiLz4KPHJlY3QgeD0iNDIiIHk9IjMyIiB3aWR0aD0iNCIgaGVpZ2h0PSI0IiByeD0iMiIgZmlsbD0iIzAwMCIvPgo8cmVjdCB4PSIxMCIgeT0iMTIiIHdpZHRoPSI0NCIgaGVpZ2h0PSIyIiBmaWxsPSIjMTU4MDNkIi8+CjxyZWN0IHg9IjEwIiB5PSIxNiIgd2lkdGg9IjQ0IiBoZWlnaHQ9IjIiIGZpbGw9IiMxNTgwM2QiLz4KPHJlY3QgeD0iMTAiIHk9IjIwIiB3aWR0aD0iNDQiIGhlaWdodD0iMiIgZmlsbD0iIzE1ODAzZCIvPgo8cmVjdCB4PSIxMCIgeT0iNTAiIHdpZHRoPSI0NCIgaGVpZ2h0PSIyIiBmaWxsPSIjMTU4MDNkIi8+CjxyZWN0IHg9IjEwIiB5PSI1NCIgd2lkdGg9IjQ0IiBoZWlnaHQ9IjIiIGZpbGw9IiMxNTgwM2QiLz4KPC9zdmc+'); background-size: 600px 600px; background-repeat: no-repeat; background-position: center;"></div>
+        <div class="hero-content">
+            <h1>Build Your Own<br><span class="accent">AI Assistant</span></h1>
+            <p class="tagline">Self-hosted. Plugin-based. Privacy-focused.</p>
+            <div class="cta-row">
+                <a href="docs.html" class="btn-primary">Get Started</a>
+                <a href="docs.html#architecture" class="btn-secondary">How It Works</a>
+            </div>
+        </div>
+    </main>
+
+    <section class="highlights">
+        <div class="highlight-card">
+            <div class="highlight-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                </svg>
+            </div>
+            <h3>Modular Architecture</h3>
+            <p>Core engine handles routing, memory, and AI. Everything else is a plugin.</p>
+        </div>
+        <div class="highlight-card">
+            <div class="highlight-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3" />
+                    <path
+                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+            </div>
+            <h3>Easy Plugin System</h3>
+            <p>Add commands and AI tools by dropping a single JavaScript file.</p>
+        </div>
+        <div class="highlight-card">
+            <div class="highlight-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+            </div>
+            <h3>Your Data, Your Server</h3>
+            <p>Runs entirely on your hardware. All data stays in a local SQLite database.</p>
+        </div>
+    </section>
+
+    <section class="providers">
+        <h2>Works With Any LLM</h2>
+        <div class="provider-list">
+            <span>OpenRouter</span>
+            <span>OpenAI</span>
+            <span>Anthropic</span>
+            <span>Kimi</span>
+            <span>+ more via OpenRouter</span>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <p>MIT License</p>
+    </footer>
+</body>
+
+</html>

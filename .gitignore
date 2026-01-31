@@ -1,0 +1,28 @@
+# node
+node_modules/
+npm-debug.log*
+
+# Config (contains API keys!)
+config.json
+.env
+
+# Data
+data/*.db
+data/*.log
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+
+# Test directory (if it's a separate git repo)
+test/

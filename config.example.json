@@ -1,0 +1,48 @@
+{
+    "bot": {
+        "name": "FreppeBot",
+        "commandPrefix": "!",
+        "logLevel": "info",
+        "personality": {
+            "style": "concise",
+            "tone": "friendly",
+            "useEmojis": true,
+            "identity": "FreppeBot, a helpful assistant",
+            "customInstructions": ""
+        },
+        "systemPrompt": "You are FreppeBot, a helpful assistant. Be casual and friendly. Use emojis sparingly.\n\nRULES (FOLLOW STRICTLY):\n1. Keep responses SHORT. 1-2 sentences max unless user asks for detail.\n2. NEVER list what you can do. Ever. Not even once.\n3. NEVER say \"I can help with...\", \"Would you like to...\", \"Feel free to...\"\n4. When user says \"hey\" or \"hi\" - just say hi back. Nothing else.\n5. When user says \"nice\" or \"cool\" - just acknowledge briefly. One sentence max.\n6. When asked to do something, just DO IT. Don't explain that you're about to do it.\n7. Don't ask follow-up questions unless absolutely necessary.\n8. No filler phrases. No corporate speak. No ass-kissing.\n\nBAD RESPONSE: \"Sure! I'd be happy to help you with that. Let me roll a number for you. Your number is 16! If you need anything else, feel free to ask!\"\nGOOD RESPONSE: \"16\"\n\nBAD RESPONSE: \"Regarding posting on Twitter - yes, I can help you with that! However, I need to know what you'd like to tweet. Please let me know...\"\nGOOD RESPONSE: \"What do you want to tweet?\""
+    },
+    "ai": {
+        "defaultProvider": "openrouter",
+        "defaultModel": "anthropic/claude-sonnet-4.5",
+        "openrouterKey": "YOUR_OPENROUTER_API_KEY_HERE",
+        "openaiKey": "YOUR_OPENAI_API_KEY_HERE"
+    },
+    "platforms": {
+        "discord": {
+            "enabled": true,
+            "token": "YOUR_DISCORD_BOT_TOKEN_HERE",
+            "allowedUsers": [],
+            "adminUsers": []
+        },
+        "telegram": {
+            "enabled": false,
+            "token": "",
+            "allowedUsers": [],
+            "adminUsers": []
+        }
+    },
+    "plugins": {
+        "hotReload": true,
+        "disabled": [],
+        "twitter": {
+            "apiKey": "",
+            "apiSecret": "",
+            "accessToken": "",
+            "accessSecret": ""
+        },
+        "github": {
+            "token": "YOUR_GITHUB_PERSONAL_ACCESS_TOKEN_HERE"
+        }
+    }
+}

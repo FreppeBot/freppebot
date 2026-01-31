@@ -1,0 +1,35 @@
+# ╔═══════════════════════════════════════════════════════════════╗
+# ║                FREPPEBOT DOCKER COMPOSE                        ║
+# ║                                                                 ║
+# ║   Deploy on VPS in 3 steps:                                    ║
+# ║   1. Run `npm run setup` locally to create config.json         ║
+# ║   2. Copy config.json to your VPS                              ║
+# ║   3. Run: docker compose up -d                                 ║
+# ╚═══════════════════════════════════════════════════════════════╝
+
+version: '3.8'
+
+services:
+  freppebot:
+    build: .
+    container_name: freppebot
+    restart: unless-stopped
+    volumes:
+      # Mount config file
+      - ./config.json:/app/config.json:ro
+      # Persist database and data
+      - ./data:/app/data
+      # Mount plugins directory for easy updates
+      - ./plugins:/app/plugins
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Watchtower for auto-updates
+  # watchtower:
+  #   image: containrrr/watchtower
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   command: --interval 86400 freppebot
