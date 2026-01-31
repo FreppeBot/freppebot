@@ -538,15 +538,28 @@ class MessageRouter {
         // Build system prompt
         const systemPrompt = this.buildSystemPrompt(ctx);
 
+        // Get recent conversation history (last 2 messages) for context
+        // This allows the AI to understand confirmations like "yes" after asking questions
+        const recentHistory = await this.memory.getConversationHistory(userId, platform, 2);
+        
+        // Build messages array with recent context
+        const messages = [
+            { role: 'system', content: systemPrompt },
+        ];
+        
+        // Add recent conversation history if available (helps with confirmations)
+        if (recentHistory && recentHistory.length > 0) {
+            messages.push(...recentHistory);
+        }
+        
+        // Add current user message
+        messages.push({ role: 'user', content });
+        
         // Get AI response with timeout (60 seconds)
-        // Don't include conversation history to prevent referencing previous messages
         try {
             const response = await withTimeout(
                 this.aiManager.chat({
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content },
-                    ],
+                    messages,
                     tools,
                     onToolCall: async (toolCall) => {
                         // Send immediate acknowledgment before executing tool
@@ -608,12 +621,13 @@ ${this.config.systemPrompt ? `## Personality\n${this.config.systemPrompt}\n` : '
 - Don't list capabilities unprompted.
 - Don't ask "anything else?" after completing tasks.
 - Recognize casual acknowledgments (okay, thanks, cool, got it, alright) - just acknowledge briefly, don't take action.
-- CRITICAL: Focus ONLY on the current message. NEVER reference previous conversations, past messages, or earlier context.
+- IMPORTANT: If you just asked a question (e.g., "Want me to send it to you?") and the user responds with "yes", "yeah", "sure", "ok", "please", etc., EXECUTE THE REQUESTED ACTION using the appropriate tool.
+- For example: If you asked "Want me to send it?" and user says "yes", use the sendVideo tool with the file path from the previous context.
+- CRITICAL: Focus on the current message, but use recent conversation context to understand confirmations and follow-up requests.
 - If user says "hey" or "hi", just say "hey" or "hi" back. DO NOT execute any tools. DO NOT continue previous tasks.
 - If user asks a simple question, answer ONLY that question. Don't add extra information from previous conversations.
-- Treat each message as completely independent - ignore conversation history unless the user explicitly references it.
-- Don't volunteer information from previous messages. Only use what's in the current message.
-- CRITICAL: DO NOT execute tools unless the user EXPLICITLY asks you to do something in the current message.
+- When the user confirms a question you just asked (like "yes" after "Want me to send it?"), execute the action immediately.
+- CRITICAL: DO NOT execute tools unless the user EXPLICITLY asks you to do something OR confirms a question you just asked.
 - If the user just says "hey", "hi", or any casual greeting, respond with a greeting ONLY. Do not execute any tools or continue any previous tasks.
 
 ## Available Tools
