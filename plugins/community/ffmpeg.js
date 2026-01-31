@@ -41,14 +41,35 @@ async function sendVideoFile(ctx, videoPath, caption = '') {
     const platform = ctx.getPlatform();
     const message = ctx.message;
 
+    logger.info(`[sendVideoFile] Attempting to send video: ${videoPath} on platform: ${platform}`);
+    
     try {
         if (platform === 'telegram') {
             // Telegram: Use bot.telegram.sendVideo
             const bot = ctx.bot;
+            if (!bot) {
+                logger.error('[sendVideoFile] Bot instance not found in context');
+                throw new Error('Bot instance not available');
+            }
+            
             const adapters = bot.adapters || [];
+            logger.info(`[sendVideoFile] Found ${adapters.length} adapter(s)`);
+            
             const telegramAdapter = adapters.find(a => a.platform === 'telegram');
-            if (telegramAdapter && telegramAdapter.bot) {
-                const chatId = message.channelId || message.userId;
+            if (!telegramAdapter) {
+                logger.error('[sendVideoFile] Telegram adapter not found in adapters list');
+                throw new Error('Telegram adapter not found');
+            }
+            
+            if (!telegramAdapter.bot) {
+                logger.error('[sendVideoFile] Telegram bot instance not found in adapter');
+                throw new Error('Telegram bot instance not available');
+            }
+            
+            const chatId = message.channelId || message.userId;
+            logger.info(`[sendVideoFile] Sending video to Telegram chat ${chatId}`);
+            
+            try {
                 await telegramAdapter.bot.telegram.sendVideo(chatId, {
                     source: videoPath,
                 }, {
@@ -56,43 +77,63 @@ async function sendVideoFile(ctx, videoPath, caption = '') {
                 });
                 logger.info(`✅ Video sent via Telegram to ${chatId}: ${videoPath}`);
                 return true;
-            } else {
-                logger.error('Telegram adapter not found');
-                return false;
+            } catch (telegramError) {
+                logger.error(`[sendVideoFile] Telegram API error: ${telegramError.message}`);
+                logger.error(`[sendVideoFile] Telegram error stack: ${telegramError.stack}`);
+                throw new Error(`Telegram send failed: ${telegramError.message}`);
             }
         } else if (platform === 'discord') {
             // Discord: Use AttachmentBuilder
             const { AttachmentBuilder } = require('discord.js');
             const attachment = new AttachmentBuilder(videoPath);
             const bot = ctx.bot;
+            
+            if (!bot) {
+                logger.error('[sendVideoFile] Bot instance not found in context');
+                throw new Error('Bot instance not available');
+            }
+            
             const adapters = bot.adapters || [];
             const discordAdapter = adapters.find(a => a.platform === 'discord');
-            if (discordAdapter && discordAdapter.client) {
-                const channelId = message.channelId;
-                const channel = await discordAdapter.client.channels.fetch(channelId);
-                if (channel) {
-                    await channel.send({
-                        content: caption || undefined,
-                        files: [attachment],
-                    });
-                    logger.info(`✅ Video sent via Discord to channel ${channelId}: ${videoPath}`);
-                    return true;
-                } else {
-                    logger.error(`Discord channel ${channelId} not found`);
-                    return false;
-                }
-            } else {
-                logger.error('Discord adapter not found');
-                return false;
+            if (!discordAdapter) {
+                logger.error('[sendVideoFile] Discord adapter not found');
+                throw new Error('Discord adapter not found');
+            }
+            
+            if (!discordAdapter.client) {
+                logger.error('[sendVideoFile] Discord client not found');
+                throw new Error('Discord client not available');
+            }
+            
+            const channelId = message.channelId;
+            logger.info(`[sendVideoFile] Fetching Discord channel ${channelId}`);
+            const channel = await discordAdapter.client.channels.fetch(channelId);
+            
+            if (!channel) {
+                logger.error(`[sendVideoFile] Discord channel ${channelId} not found`);
+                throw new Error(`Discord channel ${channelId} not found`);
+            }
+            
+            try {
+                await channel.send({
+                    content: caption || undefined,
+                    files: [attachment],
+                });
+                logger.info(`✅ Video sent via Discord to channel ${channelId}: ${videoPath}`);
+                return true;
+            } catch (discordError) {
+                logger.error(`[sendVideoFile] Discord API error: ${discordError.message}`);
+                logger.error(`[sendVideoFile] Discord error stack: ${discordError.stack}`);
+                throw new Error(`Discord send failed: ${discordError.message}`);
             }
         }
         
         logger.warn(`⚠️ Platform ${platform} doesn't support video sending`);
-        return false;
+        throw new Error(`Platform ${platform} doesn't support video sending`);
     } catch (error) {
         logger.error(`❌ Failed to send video: ${error.message}`);
-        logger.error(error.stack);
-        return false;
+        logger.error(`❌ Error stack: ${error.stack}`);
+        throw error; // Re-throw so the tool can return proper error
     }
 }
 
@@ -471,19 +512,32 @@ module.exports = new Plugin({
                     }
 
                     // Send video
-                    logger.info(`Sending video: ${filePath} (${sizeMB.toFixed(2)}MB)`);
-                    const sent = await sendVideoFile(ctx, filePath, params.caption);
-
-                    if (sent) {
-                        return {
-                            success: true,
-                            message: `Video sent successfully`,
-                            sizeMB: sizeMB.toFixed(2),
+                    logger.info(`[sendVideo] Sending video: ${filePath} (${sizeMB.toFixed(2)}MB)`);
+                    try {
+                        const sent = await sendVideoFile(ctx, filePath, params.caption);
+                        
+                        if (sent) {
+                            logger.info(`[sendVideo] Video sent successfully: ${filePath}`);
+                            return {
+                                success: true,
+                                message: `✅ Video sent successfully!`,
+                                sizeMB: sizeMB.toFixed(2),
+                            };
+                        } else {
+                            logger.error(`[sendVideo] sendVideoFile returned false`);
+                            return { success: false, error: 'Failed to send video (sendVideoFile returned false)' };
+                        }
+                    } catch (sendError) {
+                        logger.error(`[sendVideo] Error sending video: ${sendError.message}`);
+                        logger.error(`[sendVideo] Error stack: ${sendError.stack}`);
+                        return { 
+                            success: false, 
+                            error: `Failed to send video: ${sendError.message}` 
                         };
-                    } else {
-                        return { success: false, error: 'Failed to send video' };
                     }
                 } catch (error) {
+                    logger.error(`[sendVideo] Unexpected error: ${error.message}`);
+                    logger.error(`[sendVideo] Error stack: ${error.stack}`);
                     return { success: false, error: error.message };
                 }
             },
